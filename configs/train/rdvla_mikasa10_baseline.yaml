@@ -54,7 +54,7 @@ use_val_set: true
 val_freq: 1000
 val_time_limit: 60
 save_freq: 2000
-save_latest_only: false
+save_latest_only: true
 merge_lora: true
 output_dir: outputs/mikasa10_baseline
 run_name: rdvla-mikasa10-baseline
