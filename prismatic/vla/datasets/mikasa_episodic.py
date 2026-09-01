@@ -36,6 +36,14 @@ def _dataset(path: Path, episode_limit: int | None = None):
     return dataset.take(episode_limit) if episode_limit is not None else dataset
 
 
+def _single_threaded(dataset):
+    """Apply bounded threading to outer and nested RLDS datasets."""
+    options = tf.data.Options()
+    options.threading.private_threadpool_size = 1
+    options.threading.max_intra_op_parallelism = 1
+    return dataset.with_options(options)
+
+
 def _stats_path(root: Path, env_names: list[str], episode_limit: int) -> Path:
     key = f"{episode_limit}:" + ",".join(sorted(env_names))
     digest = hashlib.sha256(key.encode()).hexdigest()[:16]
@@ -137,7 +145,9 @@ class MIKASAEpisodicDataset(IterableDataset):
         while True:
             env_name = str(rng.choice(self.env_names))
             tf_episode = next(iterators[env_name])
-            step_iterator = iter(tf_episode["steps"])
+            # `steps` is itself a tf.data.Dataset and does not inherit options
+            # from the outer episode dataset.
+            step_iterator = iter(_single_threaded(tf_episode["steps"]))
             lookahead = deque()
             for _ in range(NUM_ACTIONS_CHUNK):
                 try:
