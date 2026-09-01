@@ -8,6 +8,7 @@ from collections import deque
 from pathlib import Path
 
 import numpy as np
+import tensorflow as tf
 import tensorflow_datasets as tfds
 import torch
 from torch.utils.data import IterableDataset
@@ -25,6 +26,13 @@ def _version_dir(path: Path) -> Path:
 
 def _dataset(path: Path, episode_limit: int | None = None):
     dataset = tfds.builder_from_directory(str(_version_dir(path))).as_dataset(split="train")
+    # A nested RLDS episode dataset otherwise creates a private pool sized from
+    # all host CPUs for every task iterator.  Ten task streams can exhaust the
+    # process/thread limit before a batch reaches CUDA.
+    options = tf.data.Options()
+    options.threading.private_threadpool_size = 1
+    options.threading.max_intra_op_parallelism = 1
+    dataset = dataset.with_options(options)
     return dataset.take(episode_limit) if episode_limit is not None else dataset
 
 
