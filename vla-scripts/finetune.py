@@ -165,6 +165,7 @@ def run_forward_pass(vla, action_head, proprio_projector, batch, action_tokenize
             proprio=batch["proprio"] if use_proprio else None,
             proprio_projector=proprio_projector if use_proprio else None,
             use_film=use_film,
+            skip_language_model_logits=True,
         )
 
     ground_truth_token_ids = batch["labels"][:, 1:].to(device_id)

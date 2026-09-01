@@ -515,6 +515,7 @@ class PrismaticForConditionalGeneration(PrismaticPreTrainedModel):
         proprio=None,
         proprio_projector=None,
         use_film: bool = False,
+        skip_language_model_logits: bool = False,
     ) -> Union[Tuple, PrismaticCausalLMOutputWithPast]:
         """Run a forward pass through the VLM, returning a PrismaticCausalLMOutputWithPast instance."""
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -604,18 +605,26 @@ class PrismaticForConditionalGeneration(PrismaticPreTrainedModel):
             multimodal_labels = self._build_multimodal_labels(labels, projected_patch_embeddings)
 
             # Dispatch to language model
-            language_model_output = self.language_model(
+            language_model_kwargs = dict(
                 input_ids=None,
                 attention_mask=multimodal_attention_mask,
                 position_ids=None,
                 past_key_values=None,
                 inputs_embeds=multimodal_embeddings,
-                labels=None,
                 use_cache=use_cache,
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
-                ) 
+            )
+            if skip_language_model_logits:
+                # Continuous-action training consumes decoder hidden states,
+                # not vocabulary logits.  Qwen casts those logits to fp32;
+                # at large batches the unused tensor alone occupies several
+                # GiB.  Bypass only the LM head while preserving every decoder
+                # hidden state required by the recurrent action head.
+                language_model_output = self.language_model.model(**language_model_kwargs)
+            else:
+                language_model_output = self.language_model(labels=None, **language_model_kwargs)
 
         # === Otherwise =>> Assume Invalid! ===
         elif (input_ids.shape[0] != pixel_values.shape[0]) or (inputs_embeds.shape[0] != pixel_values.shape[0]):
@@ -641,7 +650,7 @@ class PrismaticForConditionalGeneration(PrismaticPreTrainedModel):
             return language_model_output
 
         return PrismaticCausalLMOutputWithPast(
-            loss=language_model_output.loss,
+            loss=getattr(language_model_output, "loss", None),
             past_key_values=language_model_output.past_key_values,
             hidden_states=language_model_output.hidden_states,
             attentions=language_model_output.attentions,
