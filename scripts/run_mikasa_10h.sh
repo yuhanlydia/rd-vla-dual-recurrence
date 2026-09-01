@@ -25,6 +25,21 @@ export TF_NUM_INTEROP_THREADS="${TF_NUM_INTEROP_THREADS:-1}"
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-8}"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 
+# Keep clean TFRecord pages from exhausting the training cgroup. The helper
+# only calls POSIX_FADV_DONTNEED on dataset files and exits with the trainer.
+CACHE_EVICT_PID=""
+if [[ "${EVICT_DATASET_CACHE:-1}" == "1" && -d "data/mikasa_robo_vla_rlds" ]]; then
+  (
+    trap 'exit 0' TERM INT
+    while :; do
+      .venv/bin/python scripts/evict_dataset_cache.py data/mikasa_robo_vla_rlds --threshold-gib "${EVICT_THRESHOLD_GIB:-12}" || true
+      sleep "${EVICT_INTERVAL_SECONDS:-120}"
+    done
+  ) &
+  CACHE_EVICT_PID=$!
+  trap '[[ -n "${CACHE_EVICT_PID}" ]] && kill "${CACHE_EVICT_PID}" 2>/dev/null || true' EXIT INT TERM
+fi
+
 exec .venv/bin/torchrun --standalone --nnodes 1 --nproc-per-node 1 \
   run.py --config "$CONFIG" --mode train \
   --batch_size="$BATCH_SIZE" \

@@ -57,7 +57,10 @@ k_train: [1, 2, 4, 8, 12]
 train_memory_only: true
 max_steps: 10000
 max_wall_time_hours: 10
-save_freq: 10000
+use_val_set: true
+val_freq: 1000
+val_time_limit: 60
+save_freq: 2000
 save_latest_only: false
 merge_lora: false
 output_dir: outputs/mikasa10_dual

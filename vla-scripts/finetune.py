@@ -251,7 +251,7 @@ def save_training_checkpoint(cfg, run_dir, log_step, vla, processor, proprio_pro
 
     if distributed_state.is_main_process:
         processor.save_pretrained(checkpoint_dir)
-        if hasattr(cfg, 'use_fz') and cfg.use_fz:
+        if (hasattr(cfg, 'use_fz') and cfg.use_fz) or not cfg.use_lora:
             vla.module.save_pretrained(checkpoint_dir)
         else:
             vla.module.save_pretrained(adapter_dir)
