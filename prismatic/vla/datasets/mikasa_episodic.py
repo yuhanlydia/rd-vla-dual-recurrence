@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import ctypes
+import gc
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +16,20 @@ from torch.utils.data import IterableDataset
 
 from prismatic.util.data_utils import PaddedCollatorForActionPrediction
 from prismatic.vla.constants import NUM_ACTIONS_CHUNK
+
+try:
+    _MALLOC_TRIM = ctypes.CDLL(None).malloc_trim
+    _MALLOC_TRIM.argtypes = [ctypes.c_size_t]
+    _MALLOC_TRIM.restype = ctypes.c_int
+except (AttributeError, OSError):
+    _MALLOC_TRIM = None
+
+
+def _trim_host_allocator() -> None:
+    """Return freed episode buffers to the cgroup allocator when possible."""
+    gc.collect()
+    if _MALLOC_TRIM is not None:
+        _MALLOC_TRIM(0)
 
 # This host is commonly CPU-quota constrained even when many logical CPUs are
 # visible.  Bound TensorFlow globally as well as per dataset; nested RLDS step
@@ -191,6 +207,10 @@ class MIKASAEpisodicDataset(IterableDataset):
                 item["is_first"] = timestep == 0
                 item["is_last"] = timestep == episode_length - 1
                 yield item
+            # NumPy frees the episode here, but glibc may otherwise retain its
+            # arenas indefinitely while many differently sized episodes cycle.
+            del episode
+            _trim_host_allocator()
 
     def __iter__(self):
         rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
