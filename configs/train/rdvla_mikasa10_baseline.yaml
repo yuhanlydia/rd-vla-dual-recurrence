@@ -1,5 +1,5 @@
 model:
-  config_path: outputs/rdvla_spatial_40k
+  config_path: outputs/mikasa10_baseline/rdvla_spatial_40k
   vlm_path: pretrained_models/prism-qwen25-extra-dinosiglip-224px-0_5b
   use_minivlm: false
   num_images_in_input: 2
