@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import deque
 from pathlib import Path
 
 import numpy as np
@@ -112,28 +113,52 @@ class MIKASAEpisodicDataset(IterableDataset):
     def _stream(self, rng, iterators):
         while True:
             env_name = str(rng.choice(self.env_names))
-            episode = _episode_to_numpy(next(iterators[env_name]))
-            if episode is None:
+            tf_episode = next(iterators[env_name])
+            step_iterator = iter(tf_episode["steps"])
+            lookahead = deque()
+            for _ in range(NUM_ACTIONS_CHUNK):
+                try:
+                    lookahead.append(next(step_iterator))
+                except StopIteration:
+                    break
+            if not lookahead:
                 continue
-            episode["action"] = _normalize(episode["action"], self.stats["action"])
-            episode["proprio"] = _normalize(episode["proprio"], self.stats["proprio"])
-            length = len(episode["action"])
-            for t in range(length):
-                indices = np.minimum(np.arange(t, t + NUM_ACTIONS_CHUNK), length - 1)
+
+            timestep = 0
+            exhausted = len(lookahead) < NUM_ACTIONS_CHUNK
+            while lookahead:
+                current = lookahead[0]
+                actions = np.stack([step["action"].numpy() for step in lookahead])
+                if len(actions) < NUM_ACTIONS_CHUNK:
+                    padding = np.repeat(actions[-1:], NUM_ACTIONS_CHUNK - len(actions), axis=0)
+                    actions = np.concatenate([actions, padding], axis=0)
+                language = current["language_instruction"].numpy()
+                if isinstance(language, str):
+                    language = language.encode()
                 raw = {
                     "dataset_name": f"mikasa_{env_name}",
-                    "action": episode["action"][indices],
+                    "action": _normalize(actions, self.stats["action"]),
                     "observation": {
-                        "image_primary": episode["image"][t : t + 1],
-                        "image_wrist": episode["wrist"][t : t + 1],
-                        "proprio": episode["proprio"][t : t + 1],
+                        "image_primary": current["observation"]["image"].numpy()[None],
+                        "image_wrist": current["observation"]["wrist_image"].numpy()[None],
+                        "proprio": _normalize(
+                            current["observation"]["proprio"].numpy()[None], self.stats["proprio"]
+                        ),
                     },
-                    "task": {"language_instruction": episode["language"]},
+                    "task": {"language_instruction": language},
                 }
                 item = self.batch_transform(raw)
-                item["is_first"] = t == 0
-                item["is_last"] = t == length - 1
+                item["is_first"] = timestep == 0
+                item["is_last"] = bool(current["is_last"].numpy())
                 yield item
+
+                lookahead.popleft()
+                if not exhausted:
+                    try:
+                        lookahead.append(next(step_iterator))
+                    except StopIteration:
+                        exhausted = True
+                timestep += 1
 
     def __iter__(self):
         rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
