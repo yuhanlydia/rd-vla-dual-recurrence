@@ -198,6 +198,7 @@ def _convert_train_config(cfg: TrainConfig):
     legacy.use_mikasa_episodic = cfg.data.use_mikasa_episodic
     legacy.mikasa_env_names = cfg.data.mikasa_env_names
     legacy.episodes_per_env = cfg.data.episodes_per_env
+    legacy.episode_shuffle_buffer = cfg.data.episode_shuffle_buffer
     legacy.run_root_dir = Path(cfg.output_dir)
     legacy.shuffle_buffer_size = cfg.data.shuffle_buffer_size
 
