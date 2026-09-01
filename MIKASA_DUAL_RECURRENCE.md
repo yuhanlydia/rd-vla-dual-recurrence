@@ -106,15 +106,24 @@ Run a wall-clock-bounded baseline. It stops after ten hours at an optimizer-step
 boundary and saves a resumable checkpoint:
 
 ```bash
-BATCH_SIZE=8 EFFECTIVE_BATCH_SIZE=32 bash scripts/run_mikasa_10h.sh
+BATCH_SIZE=8 EFFECTIVE_BATCH_SIZE=32 \
+  bash scripts/run_mikasa_10h.sh configs/train/rdvla_mikasa10_baseline.yaml
 ```
 
-After the baseline checkpoint path in `rdvla_mikasa10_dual.yaml` is updated:
+The wrapper periodically evicts clean MIKASA TFRecord pages with
+`POSIX_FADV_DONTNEED` when the host cgroup file cache exceeds 12 GiB. This is
+required on machines where the 44 GiB dataset and the trainer share a smaller
+memory cgroup; it does not modify or delete dataset files.
+
+When baseline training completes, hand off its latest checkpoint automatically:
 
 ```bash
-BATCH_SIZE=1 EFFECTIVE_BATCH_SIZE=1 \
-  bash scripts/run_mikasa_10h.sh configs/train/rdvla_mikasa10_dual.yaml
+bash scripts/run_dual_from_latest_baseline.sh
 ```
+
+This defaults to the measured frozen-backbone batch 24 and uses one latest
+checkpoint directory to avoid filling the experiment disk. Override with
+`BATCH_SIZE=24 EFFECTIVE_BATCH_SIZE=24` explicitly if desired.
 
 On an RTX 3090 (23.57 GiB usable), the measured baseline boundary is batch 8:
 batch 8 passed consecutive optimization steps at a 19.09 GiB peak, while
@@ -131,8 +140,18 @@ bash scripts/run_mikasa_eval.sh \
   --memory correct --k 12
 ```
 
-Repeat for `(reset, 1)`, `(reset, 12)`, `(correct, 1)`, and `(correct, 12)`,
-then run `interaction_analysis.py` on the shared JSONL. The evaluator resets
+The complete five-condition run (including shuffled-memory destruction) is
+resumable with:
+
+```bash
+bash scripts/run_mikasa_factorial.sh \
+  outputs/mikasa10_dual \
+  outputs/mikasa_eval/factorial.jsonl
+```
+
+It runs `(reset, 1)`, `(reset, 12)`, `(correct, 1)`, `(correct, 12)`, and
+`(shuffle, 12)`, then writes the interaction report beside the JSONL. The
+evaluator resets
 latent state at every episode and implements the official seed stream,
 action-chunk FIFO, wrapper stack, and `success_once` latch. MIKASA rendering
 requires a working Vulkan-capable NVIDIA driver in addition to CUDA.
