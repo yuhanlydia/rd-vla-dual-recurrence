@@ -114,6 +114,8 @@ The wrapper periodically evicts clean MIKASA TFRecord pages with
 `POSIX_FADV_DONTNEED` when the host cgroup file cache exceeds 12 GiB. This is
 required on machines where the 44 GiB dataset and the trainer share a smaller
 memory cgroup; it does not modify or delete dataset files.
+It also exports `MALLOC_ARENA_MAX=2` to prevent TensorFlow's many worker
+threads from retaining one large glibc allocator arena each.
 
 When baseline training completes, hand off its latest checkpoint automatically:
 
