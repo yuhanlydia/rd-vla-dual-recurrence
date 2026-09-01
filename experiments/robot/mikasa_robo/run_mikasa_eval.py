@@ -151,6 +151,34 @@ def run_episode(env, policy, seed: int):
     return success_once, episode_return, max_steps
 
 
+def _make_eval_env(task, config, sim_backend: str):
+    """Create an env with a render backend matching the requested simulator.
+
+    MIKASA's helper forwards ``sim_backend`` but ManiSkill defaults the render
+    backend independently to CUDA.  That makes the documented CPU fallback
+    fail on hosts with no NVIDIA Vulkan render ICD.
+    """
+    if sim_backend != "cpu":
+        from mikasa_robo_suite.vla.benchmarking import make_benchmark_env
+        return make_benchmark_env(task.env_id, config)
+
+    import gymnasium as gym
+    from mikasa_robo_suite.vla.benchmarking import apply_mikasa_vla_wrappers
+
+    render_mode = "rgb_array" if config.save_videos else "all"
+    env = gym.make(
+        task.env_id,
+        num_envs=1,
+        obs_mode=config.obs_mode,
+        control_mode=config.control_mode,
+        render_mode=render_mode,
+        reward_mode=config.reward_mode,
+        sim_backend="cpu",
+        render_backend="cpu",
+    )
+    return apply_mikasa_vla_wrappers(env, include_overlays=config.include_overlays or config.save_videos)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", type=Path, required=True)
@@ -200,7 +228,7 @@ def main():
             else:
                 policy.set_instruction(task.language_instruction)
             config = BenchmarkConfig(sim_backend=args.sim_backend)
-            env = make_benchmark_env(task.env_id, config)
+            env = _make_eval_env(task, config, args.sim_backend)
             try:
                 for episode in range(args.episodes):
                     seed = args.start_seed + episode
