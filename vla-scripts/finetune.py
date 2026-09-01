@@ -42,6 +42,7 @@ from prismatic.training.train_utils import (
     get_current_action_mask,
     get_next_actions_mask
 )
+from prismatic.training.checkpointing import restore_trainer_state, save_trainer_state
 from prismatic.util.data_utils import PaddedCollatorForActionPrediction
 from prismatic.vla.action_tokenizer import ActionTokenizer
 from prismatic.vla.constants import (
@@ -229,7 +230,8 @@ def run_forward_pass(vla, action_head, proprio_projector, batch, action_tokenize
 
 
 def save_training_checkpoint(cfg, run_dir, log_step, vla, processor, proprio_projector,
-                             action_head, train_dataset, distributed_state, new_state_dict):
+                             action_head, train_dataset, distributed_state, new_state_dict,
+                             optimizers, scheduler):
     if cfg.save_latest_checkpoint_only:
         checkpoint_dir = run_dir
         checkpoint_name_suffix = "latest_checkpoint.pt"
@@ -270,6 +272,8 @@ def save_training_checkpoint(cfg, run_dir, log_step, vla, processor, proprio_pro
 
         if cfg.use_film:
             torch.save(vla.module.vision_backbone.state_dict(), checkpoint_dir / f"vision_backbone--{checkpoint_name_suffix}")
+
+        save_trainer_state(checkpoint_dir, log_step, optimizers, scheduler)
 
         import shutil
         config_path = Path(cfg.config_file_path)
@@ -541,6 +545,16 @@ def finetune(cfg):
     original_lr = optimizer.param_groups[0]["lr"]
     scheduler = MultiStepLR(optimizer, milestones=[cfg.num_steps_before_decay], gamma=0.1)
 
+    if cfg.resume:
+        restored = restore_trainer_state(
+            cfg.resum_vla_path, cfg.resume_step, optimizers, scheduler, required=False
+        )
+        print(
+            "Restored optimizer/scheduler/RNG trainer state."
+            if restored else
+            "No trainer-state checkpoint found; resuming weights with fresh optimizer state."
+        )
+
     action_tokenizer = ActionTokenizer(processor.tokenizer)
 
     use_wrist_image = cfg.num_images_in_input > 1
@@ -701,6 +715,7 @@ def finetune(cfg):
                         proprio_projector=proprio_projector if cfg.use_proprio else None,
                         action_head=action_head, train_dataset=train_dataset,
                         distributed_state=distributed_state, new_state_dict=RAW_STATE_DICT,
+                        optimizers=optimizers, scheduler=scheduler,
                     )
 
                 if ready_to_step and cfg.use_val_set and log_step > 0 and log_step % cfg.val_freq == 0:
@@ -739,6 +754,7 @@ def finetune(cfg):
             proprio_projector=proprio_projector if cfg.use_proprio else None,
             action_head=action_head, train_dataset=train_dataset,
             distributed_state=distributed_state, new_state_dict=RAW_STATE_DICT,
+            optimizers=optimizers, scheduler=scheduler,
         )
 
 
