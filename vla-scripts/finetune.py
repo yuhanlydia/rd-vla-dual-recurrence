@@ -747,6 +747,14 @@ def finetune(cfg):
                         opt.zero_grad()
                     progress.update()
                     optimizer_step += 1
+                    # Use the completed optimizer step for checkpoint and
+                    # validation scheduling.  `optimizer_step` is incremented
+                    # above; using the pre-step value silently labels a
+                    # checkpoint one step behind (and skips exact save
+                    # boundaries when resuming).
+                    completed_log_step = (
+                        cfg.resume_step + optimizer_step if cfg.resume else optimizer_step
+                    )
                     if distributed_state.is_main_process and torch.cuda.is_available():
                         peak_gib = torch.cuda.max_memory_allocated(device_id) / (1024 ** 3)
                         progress.set_postfix(
@@ -758,22 +766,22 @@ def finetune(cfg):
                         tbptt_loss = None
                         tbptt_count = 0
 
-                if ready_to_step and gradient_step_idx > 0 and log_step % cfg.save_freq == 0:
+                if ready_to_step and completed_log_step > 0 and completed_log_step % cfg.save_freq == 0:
                     save_training_checkpoint(
-                        cfg=cfg, run_dir=run_dir, log_step=log_step, vla=vla, processor=processor,
+                        cfg=cfg, run_dir=run_dir, log_step=completed_log_step, vla=vla, processor=processor,
                         proprio_projector=proprio_projector if cfg.use_proprio else None,
                         action_head=action_head, train_dataset=train_dataset,
                         distributed_state=distributed_state, new_state_dict=RAW_STATE_DICT,
                         optimizers=optimizers, scheduler=scheduler,
                     )
 
-                if ready_to_step and cfg.use_val_set and log_step > 0 and log_step % cfg.val_freq == 0:
+                if ready_to_step and cfg.use_val_set and completed_log_step > 0 and completed_log_step % cfg.val_freq == 0:
                     run_validation(
                         vla=vla, action_head=action_head,
                         proprio_projector=proprio_projector if cfg.use_proprio else None,
                         val_dataloader=val_dataloader, action_tokenizer=action_tokenizer,
                         device_id=device_id, cfg=cfg, num_patches=NUM_PATCHES,
-                        log_step=log_step, distributed_state=distributed_state,
+                        log_step=completed_log_step, distributed_state=distributed_state,
                         val_time_limit=cfg.val_time_limit,
                     )
 
