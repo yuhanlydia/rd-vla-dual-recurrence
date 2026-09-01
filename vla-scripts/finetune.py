@@ -276,9 +276,12 @@ def save_training_checkpoint(cfg, run_dir, log_step, vla, processor, proprio_pro
         save_trainer_state(checkpoint_dir, log_step, optimizers, scheduler)
 
         import shutil
-        config_path = Path(cfg.config_file_path)
+        # Checkpoints must carry the code that produced them. Copying from the
+        # input checkpoint silently reintroduced stale model logic after new
+        # persistent-memory or inference changes.
+        hf_source_dir = Path(__file__).resolve().parents[1] / "prismatic" / "extern" / "hf"
         for py_file in ["configuration_prismatic.py", "modeling_prismatic.py"]:
-            src_file = config_path / py_file
+            src_file = hf_source_dir / py_file
             if src_file.exists():
                 shutil.copy(src_file, checkpoint_dir / py_file)
 
