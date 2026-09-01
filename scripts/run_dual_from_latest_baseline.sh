@@ -28,6 +28,10 @@ if [[ ! "$step" =~ ^[0-9]+$ ]]; then
 fi
 
 echo "Starting memory-only stage from $checkpoint (step $step)"
+if [[ "${DRY_RUN:-0}" == "1" ]]; then
+  echo "DRY_RUN: would launch batch=${BATCH_SIZE:-24} effective_batch=${EFFECTIVE_BATCH_SIZE:-24}"
+  exit 0
+fi
 BATCH_SIZE="${BATCH_SIZE:-24}" EFFECTIVE_BATCH_SIZE="${EFFECTIVE_BATCH_SIZE:-24}" \
   bash scripts/run_mikasa_10h.sh configs/train/rdvla_mikasa10_dual.yaml \
     --model.config_path="$checkpoint" \
