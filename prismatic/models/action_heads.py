@@ -62,6 +62,13 @@ class RecurrentConfigInternal:
     init_std: float = 0.632
     rms_norm_eps: float = 1e-6
     rope_base: float = 10000.0
+    use_persistent_memory: bool = False
+    memory_tokens: int = 8
+    memory_dim: int = 512
+    memory_layers: int = 2
+    memory_heads: int = 8
+    memory_ffn_dim: int = 2048
+    memory_dropout: float = 0.3
 
     @property
     def weight_std(self) -> float:
@@ -151,6 +158,64 @@ class RecurrentLayer(nn.Module):
         return x
 
 
+class PersistentMemoryLayer(nn.Module):
+    """One updater block; its parameters are reused at every environment step."""
+
+    def __init__(self, dim: int, num_heads: int, ffn_dim: int):
+        super().__init__()
+        self.self_norm = nn.LayerNorm(dim)
+        self.self_attn = nn.MultiheadAttention(dim, num_heads, batch_first=True)
+        self.cross_norm = nn.LayerNorm(dim)
+        self.cross_attn = nn.MultiheadAttention(dim, num_heads, batch_first=True)
+        self.ffn_norm = nn.LayerNorm(dim)
+        self.ffn = nn.Sequential(
+            nn.Linear(dim, ffn_dim, bias=False),
+            nn.GELU(approximate="tanh"),
+            nn.Linear(ffn_dim, dim, bias=False),
+        )
+
+    def forward(self, memory: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
+        x = self.self_norm(memory)
+        memory = memory + self.self_attn(x, x, x, need_weights=False)[0]
+        x = self.cross_norm(memory)
+        memory = memory + self.cross_attn(x, context, context, need_weights=False)[0]
+        return memory + self.ffn(self.ffn_norm(memory))
+
+
+class PersistentMemoryUpdater(nn.Module):
+    """Update persistent tokens from the current Prelude and previous action."""
+
+    def __init__(
+        self,
+        memory_dim: int,
+        context_dim: int,
+        action_dim: int,
+        num_layers: int = 2,
+        num_heads: int = 8,
+        ffn_dim: int = 2048,
+    ):
+        super().__init__()
+        self.prelude_projection = nn.Linear(context_dim, memory_dim, bias=False)
+        self.action_embedding = nn.Sequential(
+            nn.Linear(action_dim, memory_dim),
+            nn.SiLU(),
+            nn.Linear(memory_dim, memory_dim),
+        )
+        self.layers = nn.ModuleList(
+            [PersistentMemoryLayer(memory_dim, num_heads, ffn_dim) for _ in range(num_layers)]
+        )
+        self.output_norm = nn.LayerNorm(memory_dim)
+
+    def forward(
+        self, memory: torch.Tensor, prelude: torch.Tensor, previous_action: torch.Tensor
+    ) -> torch.Tensor:
+        action_token = self.action_embedding(previous_action).unsqueeze(1)
+        context = torch.cat([self.prelude_projection(prelude), action_token], dim=1)
+        for layer in self.layers:
+            memory = layer(memory, context)
+        return self.output_norm(memory)
+
+
 class VLARecurrent(nn.Module):
     """Prelude -> recurrent (iterated) -> coda."""
 
@@ -191,6 +256,21 @@ class VLARecurrent(nn.Module):
         self.output_norm = RMSNorm(dim, cfg.rms_norm_eps)
         self.output_proj = nn.Linear(dim, cfg.action_dim)
         self.gamma_init = nn.Parameter(torch.ones(1))
+
+        if cfg.use_persistent_memory:
+            if cfg.memory_tokens != cfg.action_chunk_len:
+                raise ValueError(
+                    "memory_tokens must equal action_chunk_len for token-wise scratchpad injection"
+                )
+            self.memory_updater = PersistentMemoryUpdater(
+                memory_dim=cfg.memory_dim,
+                context_dim=dim,
+                action_dim=cfg.action_dim,
+                num_layers=cfg.memory_layers,
+                num_heads=cfg.memory_heads,
+                ffn_dim=cfg.memory_ffn_dim,
+            )
+            self.memory_to_scratchpad = nn.Linear(cfg.memory_dim, dim, bias=False)
         self._init_weights()
 
     def _init_weights(self):
@@ -235,7 +315,10 @@ class VLARecurrent(nn.Module):
     def forward(self, h_a: torch.Tensor, h_t: torch.Tensor, p: torch.Tensor,
                 num_iter: int = None, convergence_strategy: str = None,
                 kl_thresh: float = 0.001, cos_thresh: float = 0.999,
-                max_iter: int = 32, **kwargs) -> torch.Tensor:
+                max_iter: int = 32, memory_state: torch.Tensor = None,
+                previous_action: torch.Tensor = None, disable_memory: bool = False,
+                memory_dropout: bool = True, return_memory: bool = False,
+                **kwargs) -> torch.Tensor:
         B = h_a.size(0)
         device, dtype = h_a.device, h_a.dtype
 
@@ -247,6 +330,23 @@ class VLARecurrent(nn.Module):
         prelude_out = x
 
         state = self.init_state(B, device, dtype)
+        new_memory_state = memory_state
+        memory_active = self.cfg.use_persistent_memory and not disable_memory
+        if memory_active:
+            if memory_state is None:
+                memory_state = torch.zeros(
+                    B, self.cfg.memory_tokens, self.cfg.memory_dim, device=device, dtype=dtype
+                )
+            if previous_action is None:
+                previous_action = torch.zeros(B, self.cfg.action_dim, device=device, dtype=dtype)
+            previous_action = previous_action.reshape(B, self.cfg.action_dim).to(device=device, dtype=dtype)
+            new_memory_state = self.memory_updater(memory_state, prelude_out, previous_action)
+            if self.training and memory_dropout and self.cfg.memory_dropout > 0:
+                keep = torch.rand(B, 1, 1, device=device) >= self.cfg.memory_dropout
+                memory_for_reasoning = new_memory_state * keep.to(dtype)
+            else:
+                memory_for_reasoning = new_memory_state
+            state = state + self.memory_to_scratchpad(memory_for_reasoning)
 
         # Convergence-based stopping
         if convergence_strategy in ("kl_divergence", "cosine_similarity") and not self.training:
@@ -274,7 +374,9 @@ class VLARecurrent(nn.Module):
                                 break
                     prev_output = curr_output
 
-            return self._get_output(state, h_a, h_t, p), actual_iter, final_kl
+            output = self._get_output(state, h_a, h_t, p)
+            result = (output, actual_iter, final_kl)
+            return (*result, new_memory_state) if return_memory else result
 
         # Fixed iterations
         if num_iter is not None:
@@ -295,7 +397,8 @@ class VLARecurrent(nn.Module):
         for _ in range(min(k, total)):
             state = self._run_one_iteration(state, prelude_out, h_a, h_t, p)
 
-        return self._get_output(state, h_a, h_t, p)
+        output = self._get_output(state, h_a, h_t, p)
+        return (output, new_memory_state) if return_memory else output
 
 
 class ActionHeadRecurrent(nn.Module):
@@ -324,4 +427,4 @@ class ActionHeadRecurrent(nn.Module):
         h_a = actions_hidden_states[:, :, self.num_task_tokens:, :]
         return self.model(h_a, h_t, proprio_features, num_iter=num_iter,
                          convergence_strategy=convergence_strategy, kl_thresh=kl_thresh,
-                         cos_thresh=cos_thresh, max_iter=max_iter)
+                         cos_thresh=cos_thresh, max_iter=max_iter, **kwargs)

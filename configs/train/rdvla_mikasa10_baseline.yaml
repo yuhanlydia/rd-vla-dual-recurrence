@@ -1,0 +1,60 @@
+model:
+  config_path: outputs/rdvla_spatial_40k
+  vlm_path: pretrained_models/prism-qwen25-extra-dinosiglip-224px-0_5b
+  use_minivlm: false
+  num_images_in_input: 2
+  use_proprio: true
+  use_lora: true
+  lora_rank: 32
+
+action_head:
+  type: recurrent
+  recurrent:
+    hidden_dim: 896
+    num_heads: 8
+    prelude_vlm_layers: [11]
+    recurrent_vlm_layers: [23, 23]
+    coda_vlm_layers: [23]
+    action_chunk_len: 8
+    action_dim: 7
+    mean_recurrence: 12
+    backprop_depth: 8
+    random_iterations: true
+    use_persistent_memory: false
+
+data:
+  data_root_dir: data/mikasa_robo_vla_rlds
+  dataset_name: mikasa10
+  use_mikasa_episodic: true
+  episodes_per_env: 200
+  image_aug: false
+  mikasa_env_names:
+    - remember_color_9_vla_v0
+    - remember_color_9_long_vla_v0
+    - chain_of_colors_5_vla_v0
+    - chain_of_colors_5_long_vla_v0
+    - shell_game_shuffle_touch_vla_v0
+    - shell_game_shuffle_touch_long_vla_v0
+    - blink_count_button_press_hard_vla_v0
+    - blink_count_button_press_hard_long_vla_v0
+    - timed_transfer_hard_vla_v0
+    - timed_transfer_hard_long_vla_v0
+
+optimizer:
+  learning_rate: 0.0001
+  lr_warmup_steps: 500
+  num_steps_before_decay: 8000
+
+batch_size: 1
+grad_accumulation_steps: 8
+max_steps: 10000
+max_wall_time_hours: 10
+save_freq: 10000
+save_latest_only: false
+merge_lora: true
+output_dir: outputs/mikasa10_baseline
+run_name: rdvla-mikasa10-baseline
+use_wandb: false
+resume: true
+resume_path: outputs/rdvla_spatial_40k
+resume_step: 39999

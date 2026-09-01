@@ -51,6 +51,13 @@ BRIDGE_CONSTANTS = {
     "ACTION_PROPRIO_NORMALIZATION_TYPE": NormalizationType.BOUNDS_Q99,
 }
 
+MIKASA_CONSTANTS = {
+    "NUM_ACTIONS_CHUNK": 8,
+    "ACTION_DIM": 7,
+    "PROPRIO_DIM": 7,
+    "ACTION_PROPRIO_NORMALIZATION_TYPE": NormalizationType.BOUNDS_Q99,
+}
+
 YAM_BIMANUAL_CONSTANTS = {
     "NUM_ACTIONS_CHUNK": 8,
     "ACTION_DIM": 14,
@@ -63,6 +70,8 @@ YAM_BIMANUAL_CONSTANTS = {
 def detect_robot_platform():
     cmd_args = " ".join(sys.argv).lower()
 
+    if "mikasa" in cmd_args:
+        return "MIKASA"
     if "libero" in cmd_args:
         return "LIBERO"
     elif "aloha" in cmd_args:
@@ -76,6 +85,8 @@ def detect_robot_platform():
     config_dataset_name = _get_dataset_name_from_config()
     if config_dataset_name:
         dataset_name = config_dataset_name.lower()
+        if "mikasa" in dataset_name:
+            return "MIKASA"
         if "aloha" in dataset_name:
             return "ALOHA"
         if "calvin" in dataset_name:
@@ -115,7 +126,9 @@ def _get_dataset_name_from_config() -> Optional[str]:
 ROBOT_PLATFORM = detect_robot_platform()
 
 # Set the appropriate constants based on the detected platform
-if ROBOT_PLATFORM == "LIBERO":
+if ROBOT_PLATFORM == "MIKASA":
+    constants = MIKASA_CONSTANTS
+elif ROBOT_PLATFORM == "LIBERO":
     constants = LIBERO_CONSTANTS
 elif ROBOT_PLATFORM == "ALOHA":
     constants = ALOHA_CONSTANTS

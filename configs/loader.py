@@ -195,6 +195,9 @@ def _convert_train_config(cfg: TrainConfig):
     legacy.data_root_dir = Path(cfg.data.data_root_dir)
     legacy.dataset_name = cfg.data.dataset_name
     legacy.dataset_fraction = cfg.data.dataset_fraction
+    legacy.use_mikasa_episodic = cfg.data.use_mikasa_episodic
+    legacy.mikasa_env_names = cfg.data.mikasa_env_names
+    legacy.episodes_per_env = cfg.data.episodes_per_env
     legacy.run_root_dir = Path(cfg.output_dir)
     legacy.shuffle_buffer_size = cfg.data.shuffle_buffer_size
 
@@ -233,6 +236,10 @@ def _convert_train_config(cfg: TrainConfig):
     legacy.wandb_log_freq = cfg.wandb_log_freq
 
     legacy.phase = "Training"
+    legacy.env_tbptt_length = cfg.env_tbptt_length
+    legacy.k_train = cfg.k_train
+    legacy.train_memory_only = cfg.train_memory_only
+    legacy.max_wall_time_hours = cfg.max_wall_time_hours
 
     legacy.use_recurrent = False
     legacy.recurrent_cfg = None

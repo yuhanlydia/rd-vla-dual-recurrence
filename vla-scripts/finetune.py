@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 import time
 
@@ -51,7 +52,12 @@ from prismatic.vla.constants import (
     PROPRIO_DIM,
     NUM_TOKENS
 )
-from prismatic.vla.datasets import RLDSDataset, RLDSBatchTransform
+from prismatic.vla.datasets import (
+    MIKASAEpisodicCollator,
+    MIKASAEpisodicDataset,
+    RLDSBatchTransform,
+    RLDSDataset,
+)
 from prismatic.vla.datasets.rlds.utils.data_utils import save_dataset_statistics
 from prismatic.models import load, load_vla
 
@@ -110,7 +116,31 @@ def init_module(module_class, module_name, cfg, device_id, module_args, to_bf16=
 
     if cfg.resume:
         state_dict = load_checkpoint(module_name, cfg.resum_vla_path, cfg.resume_step)
-        module.load_state_dict(state_dict)
+        if module_name == "proprio_projector":
+            target = module.state_dict()
+            dropped = [key for key, value in state_dict.items() if key not in target or target[key].shape != value.shape]
+            if dropped:
+                print(f"Reinitializing incompatible proprio tensors for the 7D MIKASA state: {dropped}")
+                state_dict = {
+                    key: value for key, value in state_dict.items()
+                    if key in target and target[key].shape == value.shape
+                }
+        incompatible = module.load_state_dict(state_dict, strict=False)
+        allowed_missing = (
+            "model.memory_updater.",
+            "model.memory_to_scratchpad.",
+        )
+        disallowed = [
+            key for key in incompatible.missing_keys
+            if not key.startswith(allowed_missing) and module_name != "proprio_projector"
+        ]
+        if disallowed or incompatible.unexpected_keys:
+            raise RuntimeError(
+                f"Incompatible {module_name} checkpoint: missing={disallowed}, "
+                f"unexpected={incompatible.unexpected_keys}"
+            )
+        if incompatible.missing_keys:
+            print(f"Initialized new persistent-memory parameters: {len(incompatible.missing_keys)} tensors")
         print('Loaded checkpoint!')
 
     if to_bf16:
@@ -121,7 +151,8 @@ def init_module(module_class, module_name, cfg, device_id, module_args, to_bf16=
 
 
 def run_forward_pass(vla, action_head, proprio_projector, batch, action_tokenizer, device_id,
-                     use_proprio, use_film, num_patches, cfg=None):
+                     use_proprio, use_film, num_patches, cfg=None, memory_state=None,
+                     previous_action=None, num_iter=None, memory_dropout=True):
     metrics = {}
     ground_truth_actions = batch["actions"].to(device_id).to(torch.bfloat16)
 
@@ -157,9 +188,16 @@ def run_forward_pass(vla, action_head, proprio_projector, batch, action_tokenize
         proprio=batch["proprio"] if use_proprio else None,
         proprio_projector=proprio_projector if use_proprio else None,
         phase=cfg.phase,
+        memory_state=memory_state,
+        previous_action=previous_action,
+        num_iter=num_iter,
+        memory_dropout=memory_dropout,
+        return_memory=bool(action_head.module.cfg.use_persistent_memory),
     )
-
-    predicted_actions = result
+    if action_head.module.cfg.use_persistent_memory:
+        predicted_actions, new_memory_state = result
+    else:
+        predicted_actions, new_memory_state = result, None
 
     # Deep supervision: predicted_actions may be a list of predictions
     if isinstance(predicted_actions, list):
@@ -187,7 +225,7 @@ def run_forward_pass(vla, action_head, proprio_projector, batch, action_tokenize
             "next_actions_l1_loss": torch.nn.L1Loss()(predicted_actions[:, 1:], ground_truth_actions[:, 1:]).item(),
         })
 
-    return loss, metrics
+    return loss, metrics, new_memory_state
 
 
 def save_training_checkpoint(cfg, run_dir, log_step, vla, processor, proprio_projector,
@@ -273,7 +311,7 @@ def run_validation(
 
     with torch.no_grad():
         for batch in val_dataloader:
-            _, metrics = run_forward_pass(
+            _, metrics, _ = run_forward_pass(
                 vla=vla, action_head=action_head, proprio_projector=proprio_projector,
                 batch=batch, action_tokenizer=action_tokenizer, device_id=device_id,
                 use_proprio=cfg.use_proprio,
@@ -432,6 +470,13 @@ def finetune(cfg):
             init_std=rec_cfg.init_std,
             rms_norm_eps=rec_cfg.rms_norm_eps,
             rope_base=rec_cfg.rope_base,
+            use_persistent_memory=rec_cfg.use_persistent_memory,
+            memory_tokens=rec_cfg.memory_tokens,
+            memory_dim=rec_cfg.memory_dim,
+            memory_layers=rec_cfg.memory_layers,
+            memory_heads=rec_cfg.memory_heads,
+            memory_ffn_dim=rec_cfg.memory_ffn_dim,
+            memory_dropout=rec_cfg.memory_dropout,
         )
         action_head = init_module(
             ActionHeadRecurrent, "action_head", cfg, device_id,
@@ -441,6 +486,21 @@ def finetune(cfg):
 
     if action_head is None:
         raise ValueError("action_head config is required")
+
+    if action_head.module.cfg.use_persistent_memory and cfg.train_memory_only:
+        for parameter in vla.parameters():
+            parameter.requires_grad = False
+        if proprio_projector is not None:
+            for parameter in proprio_projector.parameters():
+                parameter.requires_grad = False
+        for parameter in action_head.parameters():
+            parameter.requires_grad = False
+        for parameter in action_head.module.model.memory_updater.parameters():
+            parameter.requires_grad = True
+        for parameter in action_head.module.model.memory_to_scratchpad.parameters():
+            parameter.requires_grad = True
+        count_parameters(action_head.module.model.memory_updater, "persistent memory updater")
+        count_parameters(action_head.module.model.memory_to_scratchpad, "memory projection")
 
     NUM_PATCHES = vla.module.vision_backbone.get_num_patches() * vla.module.vision_backbone.get_num_images_in_input()
 
@@ -476,19 +536,28 @@ def finetune(cfg):
     action_tokenizer = ActionTokenizer(processor.tokenizer)
 
     use_wrist_image = cfg.num_images_in_input > 1
+    use_minivlm_prompt = cfg.use_minivlm or "qwen25" in str(cfg.vlm_path).lower()
     batch_transform = RLDSBatchTransform(
         action_tokenizer, processor.tokenizer, image_transform=processor.image_processor.apply_transform,
         prompt_builder_fn=PurePromptBuilder, use_wrist_image=use_wrist_image,
-        use_proprio=cfg.use_proprio, use_minivlm=cfg.use_minivlm
+        use_proprio=cfg.use_proprio, use_minivlm=use_minivlm_prompt
     )
 
     dataset_fraction = getattr(cfg, 'dataset_fraction', 1.0)
-    train_dataset = RLDSDataset(
-        cfg.data_root_dir, cfg.dataset_name, batch_transform,
-        resize_resolution=tuple(vla.module.config.image_sizes),
-        shuffle_buffer_size=cfg.shuffle_buffer_size, image_aug=cfg.image_aug,
-        dataset_fraction=dataset_fraction,
-    )
+    if cfg.use_mikasa_episodic:
+        if not cfg.mikasa_env_names:
+            raise ValueError("mikasa_env_names is required with use_mikasa_episodic")
+        train_dataset = MIKASAEpisodicDataset(
+            cfg.data_root_dir, cfg.mikasa_env_names, batch_transform,
+            batch_size=cfg.batch_size, seed=42, episodes_per_env=cfg.episodes_per_env,
+        )
+    else:
+        train_dataset = RLDSDataset(
+            cfg.data_root_dir, cfg.dataset_name, batch_transform,
+            resize_resolution=tuple(vla.module.config.image_sizes),
+            shuffle_buffer_size=cfg.shuffle_buffer_size, image_aug=cfg.image_aug,
+            dataset_fraction=dataset_fraction,
+        )
 
     if cfg.use_val_set:
         val_dataset = RLDSDataset(
@@ -501,7 +570,8 @@ def finetune(cfg):
     if distributed_state.is_main_process:
         save_dataset_statistics(train_dataset.dataset_statistics, run_dir)
 
-    collator = PaddedCollatorForActionPrediction(
+    collator_cls = MIKASAEpisodicCollator if cfg.use_mikasa_episodic else PaddedCollatorForActionPrediction
+    collator = collator_cls(
         processor.tokenizer.model_max_length, processor.tokenizer.pad_token_id, padding_side="right"
     )
     dataloader = DataLoader(train_dataset, batch_size=cfg.batch_size, sampler=None, collate_fn=collator, num_workers=0)
@@ -520,33 +590,66 @@ def finetune(cfg):
     }
 
     with tqdm.tqdm(total=cfg.max_steps, leave=False, disable=not distributed_state.is_main_process) as progress:
+        training_started_at = time.monotonic()
+        wall_time_limit = (
+            cfg.max_wall_time_hours * 3600 if cfg.max_wall_time_hours is not None else None
+        )
         vla.train()
         for opt in optimizers:
             opt.zero_grad()
 
         batch_idx = 0
-        max_batch_idx = cfg.max_steps * cfg.grad_accumulation_steps
+        memory_enabled = action_head.module.cfg.use_persistent_memory
+        if memory_enabled and not cfg.use_mikasa_episodic:
+            raise ValueError("persistent memory requires the episode-preserving MIKASA dataloader")
+        if memory_enabled and cfg.grad_accumulation_steps != 1:
+            raise ValueError("persistent-memory TBPTT currently requires grad_accumulation_steps=1")
+        max_batch_idx = cfg.max_steps * (cfg.env_tbptt_length if memory_enabled else cfg.grad_accumulation_steps)
+        memory_state = None
+        previous_action = None
+        tbptt_loss = None
+        tbptt_count = 0
+        optimizer_step = 0
 
         while batch_idx < max_batch_idx:
             for batch in dataloader:
                 if batch_idx >= max_batch_idx:
                     break
 
-                loss, metrics = run_forward_pass(
+                if memory_enabled and memory_state is not None:
+                    reset = batch["is_first"].to(device_id).view(-1, 1, 1)
+                    memory_state = torch.where(reset, torch.zeros_like(memory_state), memory_state)
+                if memory_enabled and previous_action is not None:
+                    reset_action = batch["is_first"].to(device_id).view(-1, 1)
+                    previous_action = torch.where(reset_action, torch.zeros_like(previous_action), previous_action)
+
+                sampled_k = random.choice(cfg.k_train) if memory_enabled else None
+                loss, metrics, new_memory_state = run_forward_pass(
                     vla=vla, action_head=action_head, proprio_projector=proprio_projector if cfg.use_proprio else None,
                     batch=batch, action_tokenizer=action_tokenizer, device_id=device_id,
                     use_proprio=cfg.use_proprio,
                     use_film=cfg.use_film, num_patches=NUM_PATCHES, cfg=cfg,
+                    memory_state=memory_state, previous_action=previous_action,
+                    num_iter=sampled_k,
                 )
 
-                normalized_loss = loss / cfg.grad_accumulation_steps
-                normalized_loss.backward()
+                if memory_enabled:
+                    memory_state = new_memory_state
+                    previous_action = batch["actions"][:, 0].to(device_id).to(torch.bfloat16).detach()
+                    tbptt_loss = loss if tbptt_loss is None else tbptt_loss + loss
+                    tbptt_count += 1
+                    ready_to_step = tbptt_count == cfg.env_tbptt_length
+                    if ready_to_step:
+                        (tbptt_loss / tbptt_count).backward()
+                else:
+                    (loss / cfg.grad_accumulation_steps).backward()
+                    ready_to_step = (batch_idx + 1) % cfg.grad_accumulation_steps == 0
 
                 for metric_name, value in metrics.items():
                     if metric_name in recent_metrics:
                         recent_metrics[metric_name].append(value)
 
-                gradient_step_idx = batch_idx // cfg.grad_accumulation_steps
+                gradient_step_idx = optimizer_step
                 log_step = gradient_step_idx if not cfg.resume else cfg.resume_step + gradient_step_idx
 
                 if distributed_state.is_main_process and log_step % cfg.wandb_log_freq == 0 and cfg.use_wandb:
@@ -559,7 +662,7 @@ def finetune(cfg):
                     for param_group in optimizer.param_groups:
                         param_group["lr"] = current_lr
 
-                if (batch_idx + 1) % cfg.grad_accumulation_steps == 0:
+                if ready_to_step:
                     all_params = vla_params + action_head_params + proprio_params
                     torch.nn.utils.clip_grad_norm_(all_params, max_norm=1.0)
 
@@ -569,8 +672,13 @@ def finetune(cfg):
                     for opt in optimizers:
                         opt.zero_grad()
                     progress.update()
+                    optimizer_step += 1
+                    if memory_enabled:
+                        memory_state = memory_state.detach()
+                        tbptt_loss = None
+                        tbptt_count = 0
 
-                if gradient_step_idx > 0 and log_step % cfg.save_freq == 0:
+                if ready_to_step and gradient_step_idx > 0 and log_step % cfg.save_freq == 0:
                     save_training_checkpoint(
                         cfg=cfg, run_dir=run_dir, log_step=log_step, vla=vla, processor=processor,
                         proprio_projector=proprio_projector if cfg.use_proprio else None,
@@ -578,7 +686,7 @@ def finetune(cfg):
                         distributed_state=distributed_state, new_state_dict=RAW_STATE_DICT,
                     )
 
-                if cfg.use_val_set and log_step > 0 and log_step % cfg.val_freq == 0:
+                if ready_to_step and cfg.use_val_set and log_step > 0 and log_step % cfg.val_freq == 0:
                     run_validation(
                         vla=vla, action_head=action_head,
                         proprio_projector=proprio_projector if cfg.use_proprio else None,
@@ -590,14 +698,23 @@ def finetune(cfg):
 
                 batch_idx += 1
 
-                if log_step == cfg.max_steps:
+                if optimizer_step >= cfg.max_steps:
                     print(f"Max step {cfg.max_steps} reached! Stopping training...")
                     break
+                if ready_to_step and wall_time_limit is not None:
+                    elapsed = time.monotonic() - training_started_at
+                    if elapsed >= wall_time_limit:
+                        print(
+                            f"Wall-time limit reached after {elapsed / 3600:.2f} hours; "
+                            "saving a resumable checkpoint."
+                        )
+                        batch_idx = max_batch_idx
+                        break
 
             if batch_idx >= max_batch_idx:
                 break
 
-        final_step = cfg.resume_step + gradient_step_idx if cfg.resume else gradient_step_idx
+        final_step = cfg.resume_step + optimizer_step if cfg.resume else optimizer_step
         if distributed_state.is_main_process:
             print(f"Training complete at step {final_step}. Saving final checkpoint...")
         save_training_checkpoint(

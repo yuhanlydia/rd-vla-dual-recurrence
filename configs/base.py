@@ -43,6 +43,13 @@ class RecurrentConfig:
     init_std: float = 0.632
     rms_norm_eps: float = 1e-6
     rope_base: float = 10000.0
+    use_persistent_memory: bool = False
+    memory_tokens: int = 8
+    memory_dim: int = 512
+    memory_layers: int = 2
+    memory_heads: int = 8
+    memory_ffn_dim: int = 2048
+    memory_dropout: float = 0.3
 
 
 @dataclass
@@ -70,6 +77,9 @@ class DataConfig:
     dataset_fraction: float = 1.0
     shuffle_buffer_size: int = 100_000
     image_aug: bool = True
+    use_mikasa_episodic: bool = False
+    mikasa_env_names: List[str] = field(default_factory=list)
+    episodes_per_env: int = 200
 
 
 @dataclass
@@ -102,6 +112,10 @@ class TrainConfig:
     resume_step: Optional[int] = None
 
     seed: int = 42
+    env_tbptt_length: int = 16
+    k_train: List[int] = field(default_factory=lambda: [1, 2, 4, 8, 12])
+    train_memory_only: bool = True
+    max_wall_time_hours: Optional[float] = None
 
 
 @dataclass

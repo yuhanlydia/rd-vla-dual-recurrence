@@ -1,5 +1,10 @@
 # RD-VLA: Recurrent-Depth Vision-Language-Action Model
 
+> This fork adds persistent cross-decision memory and an episode-preserving
+> MIKASA-Robo-VLA training path. See
+> [MIKASA_DUAL_RECURRENCE.md](MIKASA_DUAL_RECURRENCE.md) for the hypothesis,
+> exact pilot, setup, and ten-hour training commands.
+
 Implicit test-time compute scaling of VLA models via latent iterative reasoning.
 
 RD-VLA introduces a weight-tied recurrent transformer core that performs iterative refinement in latent space, enabling adaptive test-time compute with constant memory footprint. The architecture decomposes the action head into three stages: **Prelude** (grounding), **Recurrent Core** (iterative refinement), and **Coda** (action projection).
