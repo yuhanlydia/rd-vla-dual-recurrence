@@ -794,6 +794,10 @@ class OpenVLAForActionPrediction(PrismaticForConditionalGeneration):
         kl_thresh=0.001,
         cos_thresh=0.999,
         max_iter=32,
+        memory_state=None,
+        previous_action=None,
+        disable_memory=False,
+        return_memory=False,
     ):
         """Run L1 regression-based continuous action prediction or discrete action tokens prediction."""
 
@@ -808,17 +812,23 @@ class OpenVLAForActionPrediction(PrismaticForConditionalGeneration):
         )
 
         # Forward pass through language model
-        language_model_output = self.language_model(
+        language_model_kwargs = dict(
             input_ids=None,
             attention_mask=multimodal_attention_mask,
             position_ids=None,
             past_key_values=None,
             inputs_embeds=multimodal_embeddings,
-            labels=None,
             use_cache=None,
             output_attentions=False,
             output_hidden_states=True,
             return_dict=True,
+        )
+        # Continuous heads consume hidden states only; avoid allocating the
+        # full fp32 vocabulary logits during closed-loop evaluation.
+        language_model_output = (
+            self.language_model.model(**language_model_kwargs)
+            if action_head is not None
+            else self.language_model(labels=None, **language_model_kwargs)
         )
 
         # Extract hidden states for action tokens
@@ -851,11 +861,22 @@ class OpenVLAForActionPrediction(PrismaticForConditionalGeneration):
                 kl_thresh=kl_thresh,
                 cos_thresh=cos_thresh,
                 max_iter=max_iter,
+                memory_state=memory_state,
+                previous_action=previous_action,
+                disable_memory=disable_memory,
+                memory_dropout=False,
+                return_memory=return_memory,
             )
             # Handle convergence-based return (output, num_iters, final_kl) vs fixed return (output)
             actual_iters = None
             final_kl = None
-            if isinstance(result, tuple):
+            new_memory_state = None
+            if return_memory:
+                if convergence_strategy in ("kl_divergence", "cosine_similarity"):
+                    normalized_actions, actual_iters, final_kl, new_memory_state = result
+                else:
+                    normalized_actions, new_memory_state = result
+            elif isinstance(result, tuple):
                 if len(result) == 3:
                     normalized_actions, actual_iters, final_kl = result
                 else:
@@ -865,6 +886,7 @@ class OpenVLAForActionPrediction(PrismaticForConditionalGeneration):
             normalized_actions = normalized_actions.reshape(NUM_ACTIONS_CHUNK, ACTION_DIM)
             normalized_actions = normalized_actions.float().cpu().detach().numpy()
         else:
+            new_memory_state = None
             # Discrete token-based prediction
             actual_iters = None
             predicted_action_token_ids = (
@@ -881,7 +903,7 @@ class OpenVLAForActionPrediction(PrismaticForConditionalGeneration):
             normalized_actions = self.bin_centers[discretized_actions]
             normalized_actions = normalized_actions.reshape(NUM_ACTIONS_CHUNK, ACTION_DIM)
 
-        return normalized_actions, actions_hidden_states, actual_iters, final_kl
+        return normalized_actions, actions_hidden_states, actual_iters, final_kl, new_memory_state
 
 
     def predict_action(
@@ -897,6 +919,10 @@ class OpenVLAForActionPrediction(PrismaticForConditionalGeneration):
         kl_thresh: float = 0.001,
         cos_thresh: float = 0.999,
         max_iter: int = 32,
+        memory_state=None,
+        previous_action=None,
+        disable_memory: bool = False,
+        return_memory: bool = False,
         **kwargs: str,
     ) -> np.ndarray:
 
@@ -937,7 +963,7 @@ class OpenVLAForActionPrediction(PrismaticForConditionalGeneration):
         NUM_PATCHES = self.vision_backbone.get_num_patches() * self.vision_backbone.get_num_images_in_input()
 
         # Run regression or discrete token-based prediction
-        normalized_actions, actions_hidden_states, actual_iters, final_kl = self._regression_or_discrete_prediction(
+        normalized_actions, actions_hidden_states, actual_iters, final_kl, new_memory_state = self._regression_or_discrete_prediction(
             input_embeddings,
             all_actions_mask,
             projected_patch_embeddings,
@@ -953,12 +979,17 @@ class OpenVLAForActionPrediction(PrismaticForConditionalGeneration):
             kl_thresh=kl_thresh,
             cos_thresh=cos_thresh,
             max_iter=max_iter,
+            memory_state=memory_state,
+            previous_action=previous_action,
+            disable_memory=disable_memory,
+            return_memory=return_memory,
             )
 
         # Unnormalize predicted actions
         actions = self._unnormalize_actions(normalized_actions, unnorm_key)
 
-        return actions, actions_hidden_states, actual_iters, final_kl
+        result = (actions, actions_hidden_states, actual_iters, final_kl)
+        return (*result, new_memory_state) if return_memory else result
 
 
 

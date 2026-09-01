@@ -341,8 +341,15 @@ def get_vla_action(
     action_head: Optional[torch.nn.Module] = None,
     proprio_projector: Optional[torch.nn.Module] = None,
     use_film: bool = False, use_minivlm: bool = False,
-) -> List[np.ndarray]:
+    memory_state: Optional[torch.Tensor] = None,
+    previous_action: Optional[torch.Tensor] = None,
+    disable_memory: bool = False,
+    return_memory: bool = False,
+) -> tuple:
     with torch.inference_mode():
+        if return_memory and action_head is None:
+            raise ValueError("return_memory requires a continuous action head")
+        new_memory_state = None
         all_images = [obs["full_image"]]
         if cfg.num_images_in_input > 1:
             all_images.extend([obs[k] for k in obs.keys() if "wrist" in k])
@@ -380,7 +387,7 @@ def get_vla_action(
             convergence_strategy = getattr(cfg, 'recurrence_strategy', 'fixed')
             if convergence_strategy == 'fixed':
                 convergence_strategy = None
-            action, _, actual_iters, final_kl = vla.predict_action(
+            prediction = vla.predict_action(
                 **inputs, unnorm_key=cfg.unnorm_key, do_sample=False,
                 proprio=proprio, proprio_projector=proprio_projector,
                 action_head=action_head, use_film=use_film,
@@ -389,10 +396,19 @@ def get_vla_action(
                 kl_thresh=getattr(cfg, 'recurrence_kl_thresh', 0.001),
                 cos_thresh=getattr(cfg, 'recurrence_cos_thresh', 0.999),
                 max_iter=getattr(cfg, 'recurrence_max_iter', 32),
+                memory_state=memory_state,
+                previous_action=previous_action,
+                disable_memory=disable_memory,
+                return_memory=return_memory,
             )
+            if return_memory:
+                action, _, actual_iters, final_kl, new_memory_state = prediction
+            else:
+                action, _, actual_iters, final_kl = prediction
 
     actions = [action[i] for i in range(min(len(action), cfg.num_open_loop_steps))]
-    return actions, actual_iters, final_kl
+    result = (actions, actual_iters, final_kl)
+    return (*result, new_memory_state) if return_memory else result
 
 
 def get_action_from_server(
