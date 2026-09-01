@@ -41,6 +41,8 @@ I = (SR(memory,K12) - SR(memory,K1))
 
 Memory destruction additionally compares correct, reset, episode-shuffled, and
 stale memory while holding the current RGB, proprioception, and instruction fixed.
+`experiments/robot/mikasa_robo/memory_interventions.py` implements those state-only
+replacements, including a cross-episode bank for batch-one evaluation.
 
 ## Pilot tasks
 
@@ -117,6 +119,17 @@ BATCH_SIZE=1 EFFECTIVE_BATCH_SIZE=1 \
 The memory phase currently requires gradient accumulation 1 because its loss is
 already accumulated across the 16-step environment-time TBPTT window.
 
+## Analysis
+
+Closed-loop evaluation rows use JSONL with at least `task`, `horizon`,
+`episode_seed`, `memory`, `k`, and `success`. Compute per-task success rates, the
+factorial interaction, paired episode-seed bootstrap intervals, and the preregistered
+GO/NO-GO gate with:
+
+```bash
+python experiments/robot/mikasa_robo/interaction_analysis.py results.jsonl
+```
+
 ## Important limitation
 
 With environment-time TBPTT 16, action supervision cannot backpropagate from a
@@ -131,4 +144,3 @@ hypothesis.
 intervention, and nonzero action-loss gradients into both the updater and memory
 projection. End-to-end baseline and two-step dual-recurrence GPU smoke tests have
 also completed on the 3090.
-
