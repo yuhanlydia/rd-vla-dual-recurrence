@@ -96,6 +96,10 @@ def get_run_id(cfg):
 
 def load_checkpoint(module_name, path, step, device="cpu"):
     checkpoint_path = os.path.join(path, f"{module_name}--{step}_checkpoint.pt")
+    if not os.path.exists(checkpoint_path):
+        latest_path = os.path.join(path, f"{module_name}--latest_checkpoint.pt")
+        if os.path.exists(latest_path):
+            checkpoint_path = latest_path
     print(f"Loading checkpoint: {checkpoint_path}")
     state_dict = torch.load(checkpoint_path, weights_only=True, map_location=device)
     return remove_ddp_in_checkpoint(state_dict)
@@ -273,7 +277,13 @@ def save_training_checkpoint(cfg, run_dir, log_step, vla, processor, proprio_pro
         if cfg.use_film:
             torch.save(vla.module.vision_backbone.state_dict(), checkpoint_dir / f"vision_backbone--{checkpoint_name_suffix}")
 
-        save_trainer_state(checkpoint_dir, log_step, optimizers, scheduler)
+        trainer_state_file = save_trainer_state(checkpoint_dir, log_step, optimizers, scheduler)
+        if cfg.save_latest_checkpoint_only:
+            # A latest-only directory must not accumulate one optimizer/RNG
+            # snapshot per save (each is hundreds of MB for the LoRA stage).
+            for old_state in checkpoint_dir.glob("trainer_state--*_checkpoint.pt"):
+                if old_state != trainer_state_file:
+                    old_state.unlink()
 
         import shutil
         # Checkpoints must carry the code that produced them. Copying from the
