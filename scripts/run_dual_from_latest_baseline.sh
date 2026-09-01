@@ -4,10 +4,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 baseline_root="outputs/mikasa10_baseline"
-latest_state="$(find "$baseline_root" -maxdepth 1 -type f -name 'trainer_state--*_checkpoint.pt' -printf '%f\n' \
-  | sed -n 's/^trainer_state--\([0-9][0-9]*\)_checkpoint\.pt$/\1 &/p' | sort -n | tail -n 1 | cut -d' ' -f2-)"
-if [[ -n "$latest_state" ]]; then
-  checkpoint="$baseline_root"
+latest_state_path="$(find "$baseline_root" -maxdepth 2 -type f -name 'trainer_state--*_checkpoint.pt' -printf '%p\n' \
+  | sed -n 's/.*\/trainer_state--\([0-9][0-9]*\)_checkpoint\.pt$/\1 &/p' | sort -n | tail -n 1 | cut -d' ' -f2-)"
+if [[ -n "$latest_state_path" ]]; then
+  checkpoint="${latest_state_path%/trainer_state--*_checkpoint.pt}"
+  latest_state="${latest_state_path##*/}"
   step="${latest_state#trainer_state--}"
   step="${step%_checkpoint.pt}"
 else
