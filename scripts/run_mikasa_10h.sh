@@ -10,6 +10,7 @@ fi
 BATCH_SIZE="${BATCH_SIZE:-8}"
 EFFECTIVE_BATCH_SIZE="${EFFECTIVE_BATCH_SIZE:-8}"
 EPISODE_SHUFFLE_BUFFER="${EPISODE_SHUFFLE_BUFFER:-1}"
+MAX_WALL_TIME_HOURS="${MAX_WALL_TIME_HOURS:-10}"
 
 if (( EFFECTIVE_BATCH_SIZE % BATCH_SIZE != 0 )); then
   echo "EFFECTIVE_BATCH_SIZE must be divisible by BATCH_SIZE" >&2
@@ -46,5 +47,5 @@ exec .venv/bin/torchrun --standalone --nnodes 1 --nproc-per-node 1 \
   --batch_size="$BATCH_SIZE" \
   --data.episode_shuffle_buffer="$EPISODE_SHUFFLE_BUFFER" \
   --grad_accumulation_steps="$GRAD_ACCUMULATION_STEPS" \
-  --max_wall_time_hours=10 \
+  --max_wall_time_hours="$MAX_WALL_TIME_HOURS" \
   "$@"
