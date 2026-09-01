@@ -80,6 +80,7 @@ class DataConfig:
     use_mikasa_episodic: bool = False
     mikasa_env_names: List[str] = field(default_factory=list)
     episodes_per_env: int = 200
+    validation_episodes_per_env: int = 50
     episode_shuffle_buffer: int = 8
 
 

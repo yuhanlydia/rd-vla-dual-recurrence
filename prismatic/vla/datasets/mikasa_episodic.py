@@ -35,7 +35,7 @@ def _version_dir(path: Path) -> Path:
     return versions[-1]
 
 
-def _dataset(path: Path, episode_limit: int | None = None):
+def _dataset(path: Path, episode_limit: int | None = None, episode_start: int = 0):
     dataset = tfds.builder_from_directory(str(_version_dir(path))).as_dataset(split="train")
     # A nested RLDS episode dataset otherwise creates a private pool sized from
     # all host CPUs for every task iterator.  Ten task streams can exhaust the
@@ -44,6 +44,8 @@ def _dataset(path: Path, episode_limit: int | None = None):
     options.threading.private_threadpool_size = 1
     options.threading.max_intra_op_parallelism = 1
     dataset = dataset.with_options(options)
+    if episode_start:
+        dataset = dataset.skip(episode_start)
     return dataset.take(episode_limit) if episode_limit is not None else dataset
 
 
@@ -132,6 +134,8 @@ class MIKASAEpisodicDataset(IterableDataset):
         seed=42,
         episodes_per_env=200,
         episode_shuffle_buffer=8,
+        episode_start=0,
+        stats=None,
     ):
         self.root = Path(root)
         self.env_names = list(env_names)
@@ -140,11 +144,14 @@ class MIKASAEpisodicDataset(IterableDataset):
         self.seed = seed
         self.episodes_per_env = episodes_per_env
         self.episode_shuffle_buffer = episode_shuffle_buffer
-        self.stats = _compute_or_load_stats(self.root, self.env_names, episodes_per_env)
+        self.episode_start = episode_start
+        self.stats = stats or _compute_or_load_stats(self.root, self.env_names, episodes_per_env)
         self.dataset_statistics = {"mikasa_combined": self.stats}
 
     def _env_iterator(self, env_name, seed):
-        dataset = _dataset(self.root / env_name, self.episodes_per_env)
+        dataset = _dataset(
+            self.root / env_name, self.episodes_per_env, episode_start=self.episode_start
+        )
         # Each element is a complete (potentially 1,000+ step) trajectory.  A
         # 200-element shuffle buffer can therefore consume tens of GB before
         # the first batch reaches the GPU.  A small episode-level buffer still

@@ -311,22 +311,44 @@ def run_validation(
 ):
     val_start_time = time.time()
     vla.eval()
+    action_head.eval()
+    if proprio_projector is not None:
+        proprio_projector.eval()
     all_val_metrics = []
+    memory_enabled = action_head.module.cfg.use_persistent_memory
+    memory_state = None
+    previous_action = None
 
     with torch.no_grad():
         for batch in val_dataloader:
-            _, metrics, _ = run_forward_pass(
+            if memory_enabled and memory_state is not None:
+                reset = batch["is_first"].to(device_id).view(-1, 1, 1)
+                memory_state = torch.where(reset, torch.zeros_like(memory_state), memory_state)
+                reset_action = batch["is_first"].to(device_id).view(-1, 1)
+                previous_action = torch.where(
+                    reset_action, torch.zeros_like(previous_action), previous_action
+                )
+            _, metrics, new_memory_state = run_forward_pass(
                 vla=vla, action_head=action_head, proprio_projector=proprio_projector,
                 batch=batch, action_tokenizer=action_tokenizer, device_id=device_id,
                 use_proprio=cfg.use_proprio,
                 use_film=cfg.use_film, num_patches=num_patches, cfg=cfg,
+                memory_state=memory_state, previous_action=previous_action,
+                num_iter=max(cfg.k_train) if memory_enabled else None,
+                memory_dropout=False,
             )
+            if memory_enabled:
+                memory_state = new_memory_state
+                previous_action = batch["actions"][:, 0].to(device_id).to(torch.bfloat16)
             all_val_metrics.append(metrics)
             if time.time() - val_start_time > val_time_limit:
                 break
 
     if not all_val_metrics:
         vla.train()
+        action_head.train()
+        if proprio_projector is not None:
+            proprio_projector.train()
         return
 
     avg_val_metrics = {}
@@ -342,6 +364,9 @@ def run_validation(
             print(f"[val step {log_step}] " + ", ".join(f"{k}={v:.6f}" for k, v in avg_val_metrics.items()))
 
     vla.train()
+    action_head.train()
+    if proprio_projector is not None:
+        proprio_projector.train()
 
 
 def finetune(cfg):
@@ -583,12 +608,21 @@ def finetune(cfg):
         )
 
     if cfg.use_val_set:
-        val_dataset = RLDSDataset(
-            cfg.data_root_dir, cfg.dataset_name, batch_transform,
-            resize_resolution=tuple(vla.module.config.image_sizes),
-            shuffle_buffer_size=cfg.shuffle_buffer_size // 10, image_aug=cfg.image_aug,
-            train=False,
-        )
+        if cfg.use_mikasa_episodic:
+            val_dataset = MIKASAEpisodicDataset(
+                cfg.data_root_dir, cfg.mikasa_env_names, batch_transform,
+                batch_size=cfg.batch_size, seed=4242,
+                episodes_per_env=cfg.validation_episodes_per_env,
+                episode_shuffle_buffer=1, episode_start=cfg.episodes_per_env,
+                stats=train_dataset.stats,
+            )
+        else:
+            val_dataset = RLDSDataset(
+                cfg.data_root_dir, cfg.dataset_name, batch_transform,
+                resize_resolution=tuple(vla.module.config.image_sizes),
+                shuffle_buffer_size=cfg.shuffle_buffer_size // 10, image_aug=cfg.image_aug,
+                train=False,
+            )
 
     if distributed_state.is_main_process:
         save_dataset_statistics(train_dataset.dataset_statistics, run_dir)

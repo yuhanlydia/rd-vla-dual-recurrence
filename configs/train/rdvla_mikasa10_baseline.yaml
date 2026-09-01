@@ -27,6 +27,7 @@ data:
   dataset_name: mikasa10
   use_mikasa_episodic: true
   episodes_per_env: 200
+  validation_episodes_per_env: 50
   image_aug: false
   mikasa_env_names:
     - remember_color_9_vla_v0
