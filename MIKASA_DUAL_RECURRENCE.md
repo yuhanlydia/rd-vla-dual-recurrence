@@ -132,6 +132,11 @@ batch 8 passed consecutive optimization steps at a 19.09 GiB peak, while
 batches 10, 12, 16, 24, and 64 reached CUDA OOM. The frozen-backbone
 memory-only stage passed batch 24 through a complete 16-step TBPTT update.
 
+The episodic loader materializes only the active episodes as NumPy arrays. The
+previous nested TensorFlow step iterator leaked host memory over long runs;
+this bounded loader is what makes the batch-8 baseline viable under the shared
+44 GiB cgroup. Keep the cache-eviction sidecar enabled for the 44 GiB dataset.
+
 Closed-loop factorial runs append one row per seeded episode and can resume
 without duplicating completed conditions:
 
