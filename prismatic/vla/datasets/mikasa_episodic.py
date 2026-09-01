@@ -96,19 +96,34 @@ def _episode_to_numpy(episode):
 class MIKASAEpisodicDataset(IterableDataset):
     """Round-robin episode streams keep batch slot i temporally coherent."""
 
-    def __init__(self, root, env_names, batch_transform, batch_size=1, seed=42, episodes_per_env=200):
+    def __init__(
+        self,
+        root,
+        env_names,
+        batch_transform,
+        batch_size=1,
+        seed=42,
+        episodes_per_env=200,
+        episode_shuffle_buffer=8,
+    ):
         self.root = Path(root)
         self.env_names = list(env_names)
         self.batch_transform = batch_transform
         self.batch_size = batch_size
         self.seed = seed
         self.episodes_per_env = episodes_per_env
+        self.episode_shuffle_buffer = episode_shuffle_buffer
         self.stats = _compute_or_load_stats(self.root, self.env_names, episodes_per_env)
         self.dataset_statistics = {"mikasa_combined": self.stats}
 
     def _env_iterator(self, env_name, seed):
         dataset = _dataset(self.root / env_name, self.episodes_per_env)
-        return iter(dataset.shuffle(200, seed=seed).repeat())
+        # Each element is a complete (potentially 1,000+ step) trajectory.  A
+        # 200-element shuffle buffer can therefore consume tens of GB before
+        # the first batch reaches the GPU.  A small episode-level buffer still
+        # randomizes trajectory order without materializing most of a task.
+        shuffle_buffer = min(self.episode_shuffle_buffer, self.episodes_per_env)
+        return iter(dataset.shuffle(shuffle_buffer, seed=seed).repeat())
 
     def _stream(self, rng, iterators):
         while True:

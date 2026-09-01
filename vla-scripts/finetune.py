@@ -550,6 +550,7 @@ def finetune(cfg):
         train_dataset = MIKASAEpisodicDataset(
             cfg.data_root_dir, cfg.mikasa_env_names, batch_transform,
             batch_size=cfg.batch_size, seed=42, episodes_per_env=cfg.episodes_per_env,
+            episode_shuffle_buffer=cfg.episode_shuffle_buffer,
         )
     else:
         train_dataset = RLDSDataset(
