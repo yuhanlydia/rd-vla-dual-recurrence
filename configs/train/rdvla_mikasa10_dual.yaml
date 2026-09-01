@@ -50,7 +50,8 @@ optimizer:
   learning_rate: 0.0001
   num_steps_before_decay: 8000
 
-batch_size: 1
+# Frozen-backbone memory-only stage fits at batch 24 on a 24 GB RTX 3090.
+batch_size: 24
 grad_accumulation_steps: 1
 env_tbptt_length: 16
 k_train: [1, 2, 4, 8, 12]

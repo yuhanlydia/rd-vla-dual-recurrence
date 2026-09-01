@@ -46,8 +46,9 @@ optimizer:
   lr_warmup_steps: 500
   num_steps_before_decay: 8000
 
-batch_size: 1
-grad_accumulation_steps: 8
+# Measured stable setting on a 24 GB RTX 3090 (effective batch = 32).
+batch_size: 8
+grad_accumulation_steps: 4
 max_steps: 10000
 max_wall_time_hours: 10
 use_val_set: true
