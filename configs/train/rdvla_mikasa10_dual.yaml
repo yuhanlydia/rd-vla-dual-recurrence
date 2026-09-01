@@ -64,5 +64,6 @@ output_dir: outputs/mikasa10_dual
 run_name: rdvla-mikasa10-dual
 use_wandb: false
 resume: true
+restore_trainer_state: false
 resume_path: outputs/mikasa10_baseline/rdvla_spatial_40k--49999_chkpt
 resume_step: 49999

@@ -573,7 +573,7 @@ def finetune(cfg):
     original_lr = optimizer.param_groups[0]["lr"]
     scheduler = MultiStepLR(optimizer, milestones=[cfg.num_steps_before_decay], gamma=0.1)
 
-    if cfg.resume:
+    if cfg.resume and cfg.restore_trainer_state:
         restored = restore_trainer_state(
             cfg.resum_vla_path, cfg.resume_step, optimizers, scheduler, required=False
         )
@@ -582,6 +582,8 @@ def finetune(cfg):
             if restored else
             "No trainer-state checkpoint found; resuming weights with fresh optimizer state."
         )
+    elif cfg.resume:
+        print("Trainer-state restore disabled for this cross-stage initialization.")
 
     action_tokenizer = ActionTokenizer(processor.tokenizer)
 

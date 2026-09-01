@@ -221,6 +221,7 @@ def _convert_train_config(cfg: TrainConfig):
     legacy.save_latest_checkpoint_only = cfg.save_latest_only
     legacy.resume = cfg.resume
     legacy.resume_step = cfg.resume_step
+    legacy.restore_trainer_state = cfg.restore_trainer_state
     legacy.image_aug = cfg.data.image_aug
     legacy.diffusion_sample_freq = 50
 

@@ -4,6 +4,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG="${1:-configs/train/rdvla_mikasa10_baseline.yaml}"
+if (( $# > 0 )); then
+  shift
+fi
 BATCH_SIZE="${BATCH_SIZE:-8}"
 EFFECTIVE_BATCH_SIZE="${EFFECTIVE_BATCH_SIZE:-8}"
 EPISODE_SHUFFLE_BUFFER="${EPISODE_SHUFFLE_BUFFER:-1}"
@@ -27,4 +30,5 @@ exec .venv/bin/torchrun --standalone --nnodes 1 --nproc-per-node 1 \
   --batch_size="$BATCH_SIZE" \
   --data.episode_shuffle_buffer="$EPISODE_SHUFFLE_BUFFER" \
   --grad_accumulation_steps="$GRAD_ACCUMULATION_STEPS" \
-  --max_wall_time_hours=10
+  --max_wall_time_hours=10 \
+  "$@"

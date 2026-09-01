@@ -112,6 +112,7 @@ class TrainConfig:
     resume: bool = False
     resume_path: Optional[str] = None
     resume_step: Optional[int] = None
+    restore_trainer_state: bool = True
 
     seed: int = 42
     env_tbptt_length: int = 16
