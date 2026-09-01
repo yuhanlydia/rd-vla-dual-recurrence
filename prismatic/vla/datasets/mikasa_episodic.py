@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections import deque
 from pathlib import Path
 
 import numpy as np
@@ -107,17 +106,24 @@ def _normalize(value: np.ndarray, stats: dict) -> np.ndarray:
 
 
 def _episode_to_numpy(episode):
-    steps = list(episode["steps"])
-    if not steps:
+    images, wrists, proprio, actions = [], [], [], []
+    language = None
+    for step in _single_threaded(episode["steps"]):
+        images.append(step["observation"]["image"].numpy())
+        wrists.append(step["observation"]["wrist_image"].numpy())
+        proprio.append(step["observation"]["proprio"].numpy())
+        actions.append(step["action"].numpy())
+        if language is None:
+            language = step["language_instruction"].numpy()
+    if not actions:
         return None
-    language = steps[0]["language_instruction"].numpy()
     if isinstance(language, str):
         language = language.encode()
     return {
-        "image": np.stack([s["observation"]["image"].numpy() for s in steps]),
-        "wrist": np.stack([s["observation"]["wrist_image"].numpy() for s in steps]),
-        "proprio": np.stack([s["observation"]["proprio"].numpy() for s in steps]),
-        "action": np.stack([s["action"].numpy() for s in steps]),
+        "image": np.stack(images),
+        "wrist": np.stack(wrists),
+        "proprio": np.stack(proprio),
+        "action": np.stack(actions),
         "language": language,
     }
 
@@ -162,54 +168,31 @@ class MIKASAEpisodicDataset(IterableDataset):
     def _stream(self, rng, iterators):
         while True:
             env_name = str(rng.choice(self.env_names))
-            tf_episode = next(iterators[env_name])
-            # `steps` is itself a tf.data.Dataset and does not inherit options
-            # from the outer episode dataset.
-            step_iterator = iter(_single_threaded(tf_episode["steps"]))
-            lookahead = deque()
-            for _ in range(NUM_ACTIONS_CHUNK):
-                try:
-                    lookahead.append(next(step_iterator))
-                except StopIteration:
-                    break
-            if not lookahead:
+            episode = _episode_to_numpy(next(iterators[env_name]))
+            if episode is None:
                 continue
-
-            timestep = 0
-            exhausted = len(lookahead) < NUM_ACTIONS_CHUNK
-            while lookahead:
-                current = lookahead[0]
-                actions = np.stack([step["action"].numpy() for step in lookahead])
+            episode_length = len(episode["action"])
+            for timestep in range(episode_length):
+                actions = episode["action"][timestep:timestep + NUM_ACTIONS_CHUNK]
                 if len(actions) < NUM_ACTIONS_CHUNK:
                     padding = np.repeat(actions[-1:], NUM_ACTIONS_CHUNK - len(actions), axis=0)
                     actions = np.concatenate([actions, padding], axis=0)
-                language = current["language_instruction"].numpy()
-                if isinstance(language, str):
-                    language = language.encode()
                 raw = {
                     "dataset_name": f"mikasa_{env_name}",
                     "action": _normalize(actions, self.stats["action"]),
                     "observation": {
-                        "image_primary": current["observation"]["image"].numpy()[None],
-                        "image_wrist": current["observation"]["wrist_image"].numpy()[None],
+                        "image_primary": episode["image"][timestep][None],
+                        "image_wrist": episode["wrist"][timestep][None],
                         "proprio": _normalize(
-                            current["observation"]["proprio"].numpy()[None], self.stats["proprio"]
+                            episode["proprio"][timestep][None], self.stats["proprio"]
                         ),
                     },
-                    "task": {"language_instruction": language},
+                    "task": {"language_instruction": episode["language"]},
                 }
                 item = self.batch_transform(raw)
                 item["is_first"] = timestep == 0
-                item["is_last"] = bool(current["is_last"].numpy())
+                item["is_last"] = timestep == episode_length - 1
                 yield item
-
-                lookahead.popleft()
-                if not exhausted:
-                    try:
-                        lookahead.append(next(step_iterator))
-                    except StopIteration:
-                        exhausted = True
-                timestep += 1
 
     def __iter__(self):
         rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
