@@ -127,6 +127,15 @@ This defaults to the measured frozen-backbone batch 24 and uses one latest
 checkpoint directory to avoid filling the experiment disk. Override with
 `BATCH_SIZE=24 EFFECTIVE_BATCH_SIZE=24` explicitly if desired.
 
+For one bounded campaign that allocates wall time to both stages, use:
+
+```bash
+BASELINE_HOURS=5 DUAL_HOURS=5 scripts/run_mikasa_campaign.sh
+```
+
+The wrapper passes each stage's limit through `MAX_WALL_TIME_HOURS` and then
+discovers the newest baseline checkpoint before launching dual recurrence.
+
 On an RTX 3090 (23.57 GiB usable), the measured baseline boundary is batch 8:
 batch 8 passed consecutive optimization steps at a 19.09 GiB peak, while
 batches 10, 12, 16, 24, and 64 reached CUDA OOM. The frozen-backbone
