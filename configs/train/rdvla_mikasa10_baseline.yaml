@@ -61,5 +61,5 @@ output_dir: outputs/mikasa10_baseline
 run_name: rdvla-mikasa10-baseline
 use_wandb: false
 resume: true
-resume_path: outputs/rdvla_spatial_40k
-resume_step: 39999
+resume_path: outputs/mikasa10_baseline/rdvla_spatial_40k
+resume_step: 40000

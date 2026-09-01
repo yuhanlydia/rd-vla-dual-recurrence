@@ -1,5 +1,5 @@
 model:
-  config_path: outputs/mikasa10_baseline/rdvla_spatial_40k--49999_chkpt
+  config_path: outputs/mikasa10_baseline/rdvla_spatial_40k
   vlm_path: pretrained_models/prism-qwen25-extra-dinosiglip-224px-0_5b
   use_minivlm: false
   num_images_in_input: 2
@@ -69,5 +69,5 @@ run_name: rdvla-mikasa10-dual
 use_wandb: false
 resume: true
 restore_trainer_state: false
-resume_path: outputs/mikasa10_baseline/rdvla_spatial_40k--49999_chkpt
-resume_step: 49999
+resume_path: outputs/mikasa10_baseline/rdvla_spatial_40k
+resume_step: 40000
