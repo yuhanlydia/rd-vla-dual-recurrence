@@ -341,6 +341,9 @@ def run_validation(
 
 
 def finetune(cfg):
+    # Avoid severe oversubscription during CPU image transforms on machines
+    # whose visible CPU count exceeds their cgroup quota.
+    torch.set_num_threads(min(8, os.cpu_count() or 1))
     global RAW_STATE_DICT
 
     cfg.config_file_path = cfg.config_file_path.rstrip("/")
@@ -616,6 +619,8 @@ def finetune(cfg):
         tbptt_loss = None
         tbptt_count = 0
         optimizer_step = 0
+        if torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats(device_id)
 
         while batch_idx < max_batch_idx:
             for batch in dataloader:
@@ -679,6 +684,12 @@ def finetune(cfg):
                         opt.zero_grad()
                     progress.update()
                     optimizer_step += 1
+                    if distributed_state.is_main_process and torch.cuda.is_available():
+                        peak_gib = torch.cuda.max_memory_allocated(device_id) / (1024 ** 3)
+                        progress.set_postfix(
+                            loss=f"{metrics['loss_value']:.4f}", gpu_peak_gib=f"{peak_gib:.2f}"
+                        )
+                        torch.cuda.reset_peak_memory_stats(device_id)
                     if memory_enabled:
                         memory_state = memory_state.detach()
                         tbptt_loss = None

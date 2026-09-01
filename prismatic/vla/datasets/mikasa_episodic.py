@@ -16,6 +16,17 @@ from torch.utils.data import IterableDataset
 from prismatic.util.data_utils import PaddedCollatorForActionPrediction
 from prismatic.vla.constants import NUM_ACTIONS_CHUNK
 
+# This host is commonly CPU-quota constrained even when many logical CPUs are
+# visible.  Bound TensorFlow globally as well as per dataset; nested RLDS step
+# iterators otherwise each build a host-sized runtime pool.
+try:
+    tf.config.threading.set_intra_op_parallelism_threads(1)
+    tf.config.threading.set_inter_op_parallelism_threads(1)
+except RuntimeError:
+    # TensorFlow may already be initialized when this module is imported by a
+    # larger application; per-dataset options below still apply in that case.
+    pass
+
 
 def _version_dir(path: Path) -> Path:
     versions = sorted(p for p in path.iterdir() if p.is_dir())
