@@ -109,10 +109,7 @@ class MIKASAEpisodicDataset(IterableDataset):
         dataset = _dataset(self.root / env_name, self.episodes_per_env)
         return iter(dataset.shuffle(200, seed=seed).repeat())
 
-    def _stream(self, rng):
-        iterators = {
-            name: self._env_iterator(name, int(rng.integers(2**31))) for name in self.env_names
-        }
+    def _stream(self, rng, iterators):
         while True:
             env_name = str(rng.choice(self.env_names))
             episode = _episode_to_numpy(next(iterators[env_name]))
@@ -141,7 +138,17 @@ class MIKASAEpisodicDataset(IterableDataset):
     def __iter__(self):
         rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
         master = np.random.default_rng(self.seed + rank)
-        streams = [self._stream(np.random.default_rng(master.integers(2**63))) for _ in range(self.batch_size)]
+        # TFDS iterators are expensive: sharing one iterator per environment keeps
+        # loader resources O(num_envs), rather than O(batch_size * num_envs).
+        # Iteration is single-threaded here, so each stream still receives a
+        # distinct complete episode without concurrent access to an iterator.
+        iterators = {
+            name: self._env_iterator(name, int(master.integers(2**31))) for name in self.env_names
+        }
+        streams = [
+            self._stream(np.random.default_rng(master.integers(2**63)), iterators)
+            for _ in range(self.batch_size)
+        ]
         while True:
             for stream in streams:
                 yield next(stream)
