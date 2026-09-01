@@ -106,7 +106,7 @@ Run a wall-clock-bounded baseline. It stops after ten hours at an optimizer-step
 boundary and saves a resumable checkpoint:
 
 ```bash
-BATCH_SIZE=8 EFFECTIVE_BATCH_SIZE=8 bash scripts/run_mikasa_10h.sh
+BATCH_SIZE=8 EFFECTIVE_BATCH_SIZE=32 bash scripts/run_mikasa_10h.sh
 ```
 
 After the baseline checkpoint path in `rdvla_mikasa10_dual.yaml` is updated:
@@ -115,6 +115,11 @@ After the baseline checkpoint path in `rdvla_mikasa10_dual.yaml` is updated:
 BATCH_SIZE=1 EFFECTIVE_BATCH_SIZE=1 \
   bash scripts/run_mikasa_10h.sh configs/train/rdvla_mikasa10_dual.yaml
 ```
+
+On an RTX 3090 (23.57 GiB usable), the measured baseline boundary is batch 8:
+batch 8 passed consecutive optimization steps at a 19.09 GiB peak, while
+batches 10, 12, 16, 24, and 64 reached CUDA OOM. The frozen-backbone
+memory-only stage passed batch 24 through a complete 16-step TBPTT update.
 
 The memory phase currently requires gradient accumulation 1 because its loss is
 already accumulated across the 16-step environment-time TBPTT window.
