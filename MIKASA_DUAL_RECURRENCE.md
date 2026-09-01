@@ -121,6 +121,22 @@ batch 8 passed consecutive optimization steps at a 19.09 GiB peak, while
 batches 10, 12, 16, 24, and 64 reached CUDA OOM. The frozen-backbone
 memory-only stage passed batch 24 through a complete 16-step TBPTT update.
 
+Closed-loop factorial runs append one row per seeded episode and can resume
+without duplicating completed conditions:
+
+```bash
+bash scripts/run_mikasa_eval.sh \
+  --checkpoint outputs/mikasa10_dual/<checkpoint> \
+  --output outputs/mikasa_eval/factorial.jsonl \
+  --memory correct --k 12
+```
+
+Repeat for `(reset, 1)`, `(reset, 12)`, `(correct, 1)`, and `(correct, 12)`,
+then run `interaction_analysis.py` on the shared JSONL. The evaluator resets
+latent state at every episode and implements the official seed stream,
+action-chunk FIFO, wrapper stack, and `success_once` latch. MIKASA rendering
+requires a working Vulkan-capable NVIDIA driver in addition to CUDA.
+
 The memory phase currently requires gradient accumulation 1 because its loss is
 already accumulated across the 16-step environment-time TBPTT window.
 
