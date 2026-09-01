@@ -19,7 +19,6 @@ from huggingface_hub import snapshot_download
 from peft import LoraConfig, PeftModel, get_peft_model
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import AdamW
-from prismatic.training.muon import Muon
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
 from transformers import AutoConfig, AutoImageProcessor, AutoModelForVision2Seq, AutoProcessor
@@ -512,6 +511,11 @@ def finetune(cfg):
     print(f"# total trainable params: {total_params}")
 
     if cfg.use_muon:
+        # Importing Muon initializes torch.compile's host-sized process pool.
+        # Keep it lazy so the default AdamW path does not retain dozens of
+        # forked compiler workers throughout data loading and training.
+        from prismatic.training.muon import Muon
+
         print("Using MUON optimizer for action head")
         action_head_muon_params = [p for p in action_head_params if p.ndim == 2]
         action_head_adam_params = [p for p in action_head_params if p.ndim != 2]
