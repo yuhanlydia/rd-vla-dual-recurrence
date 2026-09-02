@@ -204,7 +204,8 @@ bash scripts/run_mikasa_eval.sh \
   --memory correct --k 12
 ```
 
-The complete five-condition run (including shuffled-memory destruction) is
+The complete six-condition run (including shuffled and stale-memory
+destruction) is
 resumable with:
 
 ```bash
@@ -215,7 +216,7 @@ bash scripts/run_mikasa_factorial.sh \
 
 It runs `(reset, 1)`, `(reset, 12)`, `(correct, 1)`, `(correct, 12)`, and
 `(shuffle, 12)`, then writes the interaction report beside the JSONL. Set
-`DRY_RUN=1` to print all five expanded evaluator invocations without starting
+`DRY_RUN=1` to print all six expanded evaluator invocations without starting
 a simulator; this validates checkpoint/output paths before requesting a
 graphics-capable runtime. The evaluator resets
 latent state at every episode and implements the official seed stream,

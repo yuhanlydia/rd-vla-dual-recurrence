@@ -20,8 +20,8 @@ def test_factorial_wrapper_dry_run_expands_all_conditions_without_evaluator():
         text=True,
     )
     lines = result.stdout.splitlines()
-    assert len(lines) == 5
-    assert ["memory=reset", "memory=reset", "memory=correct", "memory=correct", "memory=shuffle"] == [
+    assert len(lines) == 6
+    assert ["memory=reset", "memory=reset", "memory=correct", "memory=correct", "memory=shuffle", "memory=stale"] == [
         line.split()[3] for line in lines
     ]
-    assert ["k=1", "k=12", "k=1", "k=12", "k=12"] == [line.split()[4] for line in lines]
+    assert ["k=1", "k=12", "k=1", "k=12", "k=12", "k=12"] == [line.split()[4] for line in lines]
