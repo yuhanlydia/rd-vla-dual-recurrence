@@ -25,8 +25,22 @@ if ! command -v vulkaninfo >/dev/null 2>&1; then
 fi
 report="$(vulkaninfo --summary 2>&1 || true)"
 if ! printf '%s\n' "$report" | rg -q 'PHYSICAL_DEVICE_TYPE_(DISCRETE|INTEGRATED)_GPU'; then
+  # Some NVIDIA container-runtime versions install the ICD under /etc while
+  # the loader only scans /usr/share by default.  Probe it explicitly so a
+  # broken/missing graphics mount is distinguishable from a Mesa-only host.
+  for icd in /etc/vulkan/icd.d/nvidia_icd.json /usr/share/vulkan/icd.d/nvidia_icd.json; do
+    [[ -f "$icd" ]] || continue
+    candidate_report="$(VK_ICD_FILENAMES="$icd" vulkaninfo --summary 2>&1 || true)"
+    if printf '%s\n' "$candidate_report" | rg -q 'PHYSICAL_DEVICE_TYPE_(DISCRETE|INTEGRATED)_GPU'; then
+      report="$candidate_report"
+      break
+    fi
+    report="$report\n[explicit ICD $icd]\n$candidate_report"
+  done
+fi
+if ! printf '%b\n' "$report" | rg -q 'PHYSICAL_DEVICE_TYPE_(DISCRETE|INTEGRATED)_GPU'; then
   echo "[runtime] ERROR: no Vulkan discrete/integrated GPU was found" >&2
-  printf '%s\n' "$report" | rg -m 5 'vkCreateInstance|deviceType|deviceName|llvmpipe|error' >&2 || true
+  printf '%b\n' "$report" | rg -m 8 'vkCreateInstance|deviceType|deviceName|llvmpipe|error|ICD' >&2 || true
   exit 5
 fi
 echo "[runtime] OK: CUDA and Vulkan GPU render device are visible"
