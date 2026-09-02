@@ -9,6 +9,13 @@ shift 2
 MEMORY="${MEMORY:-correct}"
 K_VALUES="${K_VALUES:-1 2 4 8 12 16}"
 
+for k in $K_VALUES; do
+  case "$k" in
+    1|2|4|8|12|16) ;;
+    *) echo "Unsupported K=${k}; choose from 1 2 4 8 12 16" >&2; exit 2 ;;
+  esac
+done
+
 # Each invocation is append-only and the evaluator's resume key includes
 # (task, seed, memory, K, stale_delta), so interrupted sweeps are safe to rerun.
 for k in $K_VALUES; do
