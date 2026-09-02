@@ -247,6 +247,8 @@ def parse_args():
 
 def main():
     args = parse_args()
+    # Check graphics before importing ManiSkill/SAPIEN or loading the VLA.
+    _check_vulkan_render_device()
     sys.path.insert(0, str(args.mikasa_root))
     try:
         from mikasa_robo_suite.vla.benchmarking import (
@@ -264,7 +266,6 @@ def main():
         env_ids=args.tasks or PILOT_TASKS,
         csv_path=args.mikasa_root / "mikasa_robo_vla_envs.csv",
     ))
-    _check_vulkan_render_device()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     completed = set()
     if args.output.exists():
