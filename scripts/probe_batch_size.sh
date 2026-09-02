@@ -3,7 +3,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-for batch_size in 64 32 16 8 4 2 1; do
+probe_batches=(64 32 24 16 12 10 8 4 2 1)
+if [[ -n "${PROBE_BATCHES:-}" ]]; then
+  read -r -a probe_batches <<< "$PROBE_BATCHES"
+fi
+
+for batch_size in "${probe_batches[@]}"; do
   echo "Probing batch_size=${batch_size}"
   if TF_CPP_MIN_LOG_LEVEL=3 TF_FORCE_GPU_ALLOW_GROWTH=true CUDA_VISIBLE_DEVICES=0 \
     .venv/bin/torchrun --standalone --nnodes 1 --nproc-per-node 1 \
