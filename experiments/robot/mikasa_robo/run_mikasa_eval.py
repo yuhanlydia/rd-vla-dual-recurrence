@@ -61,13 +61,13 @@ def _check_vulkan_render_device() -> None:
     capabilities = os.environ.get("NVIDIA_DRIVER_CAPABILITIES", "")
     if capabilities:
         enabled = {part.strip().lower() for part in capabilities.split(",")}
-        if "all" not in enabled and not {"graphics", "display"}.issubset(enabled):
+        if "all" not in enabled and "graphics" not in enabled:
             raise SystemExit(
-                "MIKASA closed-loop evaluation needs NVIDIA graphics/display "
+                "MIKASA closed-loop evaluation needs NVIDIA graphics "
                 "capabilities (the container currently exposes "
                 f"NVIDIA_DRIVER_CAPABILITIES={capabilities!r}). Restart the "
                 "container with NVIDIA_DRIVER_CAPABILITIES=compute,utility,"
-                "graphics,display, then rerun."
+                "graphics (add display for viewer output), then rerun."
             )
 
     vulkaninfo = shutil.which("vulkaninfo")
