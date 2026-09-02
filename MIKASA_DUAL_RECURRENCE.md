@@ -204,8 +204,10 @@ bash scripts/run_mikasa_factorial.sh \
 ```
 
 It runs `(reset, 1)`, `(reset, 12)`, `(correct, 1)`, `(correct, 12)`, and
-`(shuffle, 12)`, then writes the interaction report beside the JSONL. The
-evaluator resets
+`(shuffle, 12)`, then writes the interaction report beside the JSONL. Set
+`DRY_RUN=1` to print all five expanded evaluator invocations without starting
+a simulator; this validates checkpoint/output paths before requesting a
+graphics-capable runtime. The evaluator resets
 latent state at every episode and implements the official seed stream,
 action-chunk FIFO, wrapper stack, and `success_once` latch. MIKASA rendering
 requires a working Vulkan-capable NVIDIA driver in addition to CUDA. The
