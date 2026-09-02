@@ -81,3 +81,20 @@ def test_action_loss_trains_memory_writer_and_projection():
     assert model.memory_to_scratchpad.weight.grad is not None
     assert model.memory_updater.prelude_projection.weight.grad is not None
     assert model.memory_updater.prelude_projection.weight.grad.abs().sum() > 0
+
+
+def test_reasoning_depth_sweep_preserves_action_shape_and_finiteness():
+    torch.manual_seed(3)
+    model = _model().eval()
+    h_a, h_t, proprio, previous_action = _inputs(batch=1)
+    for k in (1, 2, 4, 8, 12, 16):
+        torch.manual_seed(17)
+        prediction = model(
+            h_a,
+            h_t,
+            proprio,
+            previous_action=previous_action,
+            num_iter=k,
+        )
+        assert prediction.shape == (1, 4, 7)
+        assert torch.isfinite(prediction).all()
