@@ -50,6 +50,19 @@ def test_gate_rejects_missing_memory_destruction_evidence():
     assert not go_no_go(rows)["go"]
 
 
+def test_gate_recognizes_long_task_ids_with_medium_csv_split():
+    rows = _rows()
+    for row in rows:
+        if row["task"].startswith("long_"):
+            row["task"] = row["task"].replace("long_", "RememberColor9-Long-VLA-v0-")
+            row["horizon"] = "medium"
+
+    gate = go_no_go(rows)
+    assert gate["long_tasks"] == 5
+    assert gate["long_family_wins"] == 5
+    assert gate["go"]
+
+
 def test_paired_bootstrap_preserves_episode_seed_structure():
     rows = []
     for seed in range(8):

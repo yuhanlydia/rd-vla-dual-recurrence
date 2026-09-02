@@ -49,6 +49,19 @@ def interactions(rows):
     return result
 
 
+def _is_long_task(row):
+    """Recognize the pilot's explicit ``*-Long-*`` variants.
+
+    MIKASA's CSV labels some 600-step Long variants as ``Medium`` by horizon
+    split.  The task ID is the stable indicator for the paired short/long
+    design, while an explicit ``Long`` split remains authoritative for other
+    benchmark tasks.
+    """
+    horizon = str(row.get("horizon", "")).lower()
+    task = str(row.get("task", "")).lower()
+    return horizon == "long" or "-long-" in task or task.endswith("_long")
+
+
 def paired_bootstrap_interaction(rows, samples=10_000, seed=42):
     """Resample episode seeds, preserving all four interventions per seed."""
     by_seed = defaultdict(list)
@@ -80,7 +93,7 @@ def go_no_go(rows):
     table = interactions(rows)
     long_tasks = [
         task for task in table
-        if any(r["task"] == task and str(r.get("horizon", "")).lower() == "long" for r in rows)
+        if any(r["task"] == task and _is_long_task(r) for r in rows)
     ]
     nonlong_tasks = [task for task in table if task not in long_tasks]
     wins = sum(table[task]["dual"] > table[task]["reasoning"] for task in long_tasks)
