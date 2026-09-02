@@ -229,6 +229,13 @@ This must be set when the container is created; exporting it inside an
 already-running training container cannot mount the missing Vulkan driver
 libraries/device nodes retroactively.
 
+On the current training container, an explicit probe with
+`NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics` and
+`VK_ICD_FILENAMES=/etc/vulkan/icd.d/nvidia_icd.json` still returns
+`vkCreateInstance ... ERROR_INCOMPATIBLE_DRIVER`. This confirms that the
+remaining issue is the container's graphics-driver mount/runtime, not an
+evaluator or checkpoint failure.
+
 Run the cheap runtime check before loading a checkpoint:
 
 ```bash
