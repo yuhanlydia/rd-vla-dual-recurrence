@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -33,6 +33,31 @@ def success_rates(rows):
         if condition is not None:
             grouped[(row["task"], condition)].append(float(row["success"]))
     return {key: float(np.mean(values)) for key, values in grouped.items()}
+
+
+def condition_coverage(rows):
+    """Count usable episodes for every factorial cell, per task.
+
+    Evaluation is append-only and may be interrupted between intervention
+    runs.  Exposing counts in the report makes a partial JSONL auditable
+    instead of leaving readers to infer completeness from NaN interaction
+    values.
+    """
+    counts = defaultdict(Counter)
+    for row in rows:
+        condition = _condition(row)
+        if condition is not None:
+            counts[row["task"]][condition] += 1
+    output = {}
+    for task in sorted(counts):
+        cells = {
+            name: int(counts[task].get(name, 0)) for name in CONDITIONS
+        }
+        output[task] = {
+            "counts": cells,
+            "complete": all(value > 0 for value in cells.values()),
+        }
+    return output
 
 
 def interactions(rows):
@@ -140,6 +165,7 @@ def main():
     args = parser.parse_args()
     rows = [json.loads(line) for line in args.results.read_text().splitlines() if line.strip()]
     report = {
+        "coverage": condition_coverage(rows),
         "tasks": interactions(rows),
         "bootstrap": paired_bootstrap_interaction(rows, args.bootstrap_samples),
         "gate": go_no_go(rows),

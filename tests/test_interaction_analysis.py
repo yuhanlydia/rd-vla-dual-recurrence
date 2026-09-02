@@ -1,4 +1,5 @@
 from experiments.robot.mikasa_robo.interaction_analysis import (
+    condition_coverage,
     go_no_go,
     interactions,
     paired_bootstrap_interaction,
@@ -113,3 +114,14 @@ def test_paired_bootstrap_excludes_incomplete_episode():
     report = paired_bootstrap_interaction(rows, samples=100, seed=3)["long_incomplete"]
     assert report["episodes"] == 2
     assert report["interaction"] == 1.0
+
+
+def test_condition_coverage_makes_partial_append_only_runs_auditable():
+    rows = _rows()
+    rows = [row for row in rows if not (
+        row["task"] == "long_0" and row["memory"] == "correct" and row["k"] == 12
+    )]
+    coverage = condition_coverage(rows)
+    assert coverage["long_0"]["counts"]["dual"] == 0
+    assert coverage["long_0"]["complete"] is False
+    assert coverage["long_1"]["complete"] is True
