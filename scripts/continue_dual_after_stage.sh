@@ -12,9 +12,13 @@ WATCH_PID="${1:?usage: $0 TRAINER_OR_WRAPPER_PID [HOURS] [OUTPUT_DIR]}"
 CONTINUE_HOURS="${2:-3}"
 OUTPUT_DIR="${3:-outputs/mikasa10_dual}"
 
-while kill -0 "$WATCH_PID" 2>/dev/null; do
-  sleep 60
-done
+if [[ "${DRY_RUN:-0}" == "1" ]]; then
+  echo "DRY_RUN: not waiting for live pid $WATCH_PID"
+else
+  while kill -0 "$WATCH_PID" 2>/dev/null; do
+    sleep 60
+  done
+fi
 
 latest_state_path="$(find "$OUTPUT_DIR" -maxdepth 3 -type f \
   -name 'trainer_state--*_checkpoint.pt' -printf '%p\n' \
