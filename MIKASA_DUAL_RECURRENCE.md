@@ -155,6 +155,16 @@ setsid nohup bash scripts/watch_dual_until_deadline.sh <supervisor-pid> "$DEADLI
 For a run stored outside the default directory, pass the output directory as
 the fourth argument; takeover stages then resume from that directory too.
 
+If the live stage can exit before its first `save_freq` boundary, provide a
+known-good fallback trainer state so the watcher can still take over:
+
+```bash
+FALLBACK_DIR=outputs/mikasa10_dual_dropoutfix_smoke2/rdvla_spatial_40k \
+FALLBACK_STEP=44105 \
+  bash scripts/watch_dual_until_deadline.sh <supervisor-pid> "$DEADLINE" \
+    configs/train/rdvla_mikasa10_dual.yaml outputs/mikasa10_dual_fixed
+```
+
 For one bounded campaign that allocates wall time to both stages, use:
 
 ```bash
