@@ -223,6 +223,13 @@ def test_main_writes_and_resumes_append_only_jsonl():
             assert rows[0]["success"] is True
             assert rows[0]["memory"] == "reset"
             assert rows[0]["stale_delta"] == 100
+            # Changing the stale lag must not collide with an older append-only
+            # row, even for a non-stale intervention.
+            sys.argv = [*sys.argv, "--stale-delta", "101"]
+            eval_runner.main()
+            rows = [json.loads(line) for line in output.read_text().splitlines()]
+            assert len(rows) == 2
+            assert rows[-1]["stale_delta"] == 101
     finally:
         eval_runner.RDVLAMemoryPolicy = old_policy
         eval_runner._make_eval_env = old_env

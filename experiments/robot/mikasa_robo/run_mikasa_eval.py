@@ -305,7 +305,15 @@ def main():
         for line in args.output.read_text().splitlines():
             if line.strip():
                 row = json.loads(line)
-                completed.add((row["task"], int(row["episode_seed"]), row["memory"], int(row["k"])))
+                completed.add(
+                    (
+                        row["task"],
+                        int(row["episode_seed"]),
+                        row["memory"],
+                        int(row["k"]),
+                        int(row.get("stale_delta", 100)),
+                    )
+                )
 
     policy = None
     with args.output.open("a", encoding="utf-8") as output_file:
@@ -325,7 +333,7 @@ def main():
             try:
                 for episode in range(args.episodes):
                     seed = args.start_seed + episode
-                    key = (task.env_id, seed, args.memory, args.k)
+                    key = (task.env_id, seed, args.memory, args.k, args.stale_delta)
                     if key in completed:
                         continue
                     success, episode_return, length = run_episode(env, policy, seed)
