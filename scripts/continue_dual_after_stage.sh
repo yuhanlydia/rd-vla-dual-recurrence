@@ -35,6 +35,29 @@ if [[ ! "$step" =~ ^[0-9]+$ ]]; then
   exit 2
 fi
 
+# Validate the resumable trainer state before handing it to the next process.
+# A partially written file must never silently restart a stage from bad RNG or
+# optimizer state.
+.venv/bin/python - "$latest_state_path" "$step" <<'PY'
+import sys
+from pathlib import Path
+
+import torch
+
+path = Path(sys.argv[1])
+expected_step = int(sys.argv[2])
+state = torch.load(path, map_location="cpu", weights_only=False)
+required = {"step", "optimizers", "scheduler", "cuda_rng", "numpy_rng", "python_rng", "torch_rng"}
+missing = required.difference(state)
+if missing:
+    raise SystemExit(f"Checkpoint {path} missing keys: {sorted(missing)}")
+if int(state["step"]) != expected_step:
+    raise SystemExit(f"Checkpoint step mismatch: filename={expected_step}, payload={state['step']}")
+if not state["optimizers"]:
+    raise SystemExit(f"Checkpoint {path} has no optimizer state")
+print(f"Validated checkpoint step={expected_step}: optimizer/scheduler/RNG state present")
+PY
+
 echo "Resuming dual stage from $checkpoint (step $step) for ${CONTINUE_HOURS}h"
 MAX_WALL_TIME_HOURS="$CONTINUE_HOURS" \
 BATCH_SIZE="${BATCH_SIZE:-24}" \
