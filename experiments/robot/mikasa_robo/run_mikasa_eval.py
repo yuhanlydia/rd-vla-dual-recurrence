@@ -114,6 +114,13 @@ def _scalar(value, default=0):
     return array.reshape(-1)[0].item() if array.size else default
 
 
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
 class RDVLAMemoryPolicy:
     chunk_size = 8
 
@@ -270,7 +277,7 @@ def parse_args():
     parser.add_argument("--memory", choices=("correct", "reset", "shuffle", "stale"), required=True)
     parser.add_argument(
         "--stale-delta",
-        type=int,
+        type=_positive_int,
         default=100,
         help="Physical-time lag Δ for --memory stale (default: 100 decisions)",
     )

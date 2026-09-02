@@ -121,6 +121,32 @@ def test_cli_exposes_stale_delta(monkeypatch):
     assert parse_args().stale_delta == 37
 
 
+def test_cli_rejects_nonpositive_stale_delta(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_mikasa_eval.py",
+            "--checkpoint",
+            "checkpoint",
+            "--output",
+            "results.jsonl",
+            "--k",
+            "12",
+            "--memory",
+            "stale",
+            "--stale-delta",
+            "0",
+        ],
+    )
+    try:
+        parse_args()
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("nonpositive stale delta was accepted")
+
+
 def test_main_writes_and_resumes_append_only_jsonl():
     """Exercise canonical selection, episode execution, and resume skipping."""
 
