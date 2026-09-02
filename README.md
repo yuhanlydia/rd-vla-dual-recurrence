@@ -5,6 +5,15 @@
 > [MIKASA_DUAL_RECURRENCE.md](MIKASA_DUAL_RECURRENCE.md) for the hypothesis,
 > exact pilot, setup, and ten-hour training commands.
 
+Before an expensive run, validate the downloaded RLDS metadata with this
+JSON-only check (it does not import TensorFlow or SAPIEN):
+
+```bash
+.venv/bin/python scripts/validate_mikasa_metadata.py data/mikasa_robo_vla_rlds
+```
+
+The pilot expects 10 selected tasks with 250 training trajectories each.
+
 Implicit test-time compute scaling of VLA models via latent iterative reasoning.
 
 RD-VLA introduces a weight-tied recurrent transformer core that performs iterative refinement in latent space, enabling adaptive test-time compute with constant memory footprint. The architecture decomposes the action head into three stages: **Prelude** (grounding), **Recurrent Core** (iterative refinement), and **Coda** (action projection).
