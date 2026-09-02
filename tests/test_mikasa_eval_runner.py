@@ -1,6 +1,10 @@
 import torch
 
-from experiments.robot.mikasa_robo.run_mikasa_eval import _require_canonical_tasks, run_episode
+from experiments.robot.mikasa_robo.run_mikasa_eval import (
+    _check_vulkan_render_device,
+    _require_canonical_tasks,
+    run_episode,
+)
 
 
 class _Policy:
@@ -59,3 +63,10 @@ def test_unknown_task_ids_fail_fast_instead_of_using_custom_fallback():
     else:
         raise AssertionError("custom task fallback was not rejected")
     assert _require_canonical_tasks([_Task("RememberColor9-VLA-v0", "short")])[0].env_id == "RememberColor9-VLA-v0"
+
+
+def test_vulkan_probe_reports_cpu_only_render_host():
+    try:
+        _check_vulkan_render_device()
+    except SystemExit as exc:
+        assert "Vulkan GPU render device" in str(exc)

@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import shutil
+import subprocess
 import sys
 from collections import deque
 from pathlib import Path
@@ -43,6 +46,44 @@ def _require_canonical_tasks(tasks):
             + ", ".join(unknown)
         )
     return tasks
+
+
+def _check_vulkan_render_device() -> None:
+    """Fail before model loading when SAPIEN cannot see a Vulkan GPU.
+
+    ManiSkill's SAPIEN build still creates a Vulkan render system for the
+    ``sim_backend=cpu`` path. On headless hosts with only llvmpipe this can
+    otherwise fail (or segfault) after the 2.5 GB checkpoint has loaded.
+    ``vulkaninfo`` is optional; when unavailable, SAPIEN provides the final
+    diagnostic.
+    """
+    vulkaninfo = shutil.which("vulkaninfo")
+    if vulkaninfo is None:
+        return
+    try:
+        result = subprocess.run(
+            [vulkaninfo, "--summary"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return
+    report = f"{result.stdout}\n{result.stderr}"
+    device_types = re.findall(
+        r"deviceType\s*=\s*PHYSICAL_DEVICE_TYPE_([A-Z_]+)", report
+    )
+    gpu_types = {kind for kind in device_types if kind.endswith("_GPU")}
+    if gpu_types:
+        return
+    if "llvmpipe" in report.lower() or "vkcreateinstance" in report.lower():
+        raise SystemExit(
+            "MIKASA closed-loop evaluation requires a Vulkan GPU render device. "
+            "vulkaninfo found no discrete/integrated GPU (only llvmpipe or a "
+            "broken ICD). Install/fix the NVIDIA Vulkan ICD, then rerun; the "
+            "CPU simulator backend does not remove this SAPIEN render requirement."
+        )
 
 
 def _scalar(value, default=0):
@@ -223,6 +264,7 @@ def main():
         env_ids=args.tasks or PILOT_TASKS,
         csv_path=args.mikasa_root / "mikasa_robo_vla_envs.csv",
     ))
+    _check_vulkan_render_device()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     completed = set()
     if args.output.exists():
