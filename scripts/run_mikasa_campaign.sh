@@ -9,6 +9,12 @@ cd "$(dirname "$0")/.."
 BASELINE_HOURS="${BASELINE_HOURS:-5}"
 DUAL_HOURS="${DUAL_HOURS:-5}"
 BASELINE_CONFIG="${BASELINE_CONFIG:-configs/train/rdvla_mikasa10_baseline.yaml}"
+DATA_ROOT="${DATA_ROOT:-data/mikasa_robo_vla_rlds}"
+
+if [[ "${VALIDATE_MIKASA_METADATA:-1}" == "1" ]]; then
+  echo "[campaign] validating MIKASA metadata under ${DATA_ROOT}"
+  .venv/bin/python scripts/validate_mikasa_metadata.py "$DATA_ROOT"
+fi
 
 echo "[campaign] baseline stage: ${BASELINE_HOURS}h"
 MAX_WALL_TIME_HOURS="$BASELINE_HOURS" bash scripts/run_mikasa_10h.sh "$BASELINE_CONFIG" "$@"
