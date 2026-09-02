@@ -136,6 +136,13 @@ setsid nohup bash scripts/continue_dual_after_stage.sh <wrapper-pid> 3 \
   > outputs/mikasa10_dual/continuation.log 2>&1 < /dev/null &
 ```
 
+The optional third argument selects the output directory when the stage was
+started outside the default `outputs/mikasa10_dual`, for example:
+
+```bash
+bash scripts/continue_dual_after_stage.sh <wrapper-pid> 3 outputs/mikasa10_dual_fixed
+```
+
 Continuation stages restore the checkpoint's optimizer, scheduler, and RNG
 state; only the initial baseline-to-dual handoff intentionally starts with a
 fresh optimizer.

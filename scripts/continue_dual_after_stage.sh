@@ -8,20 +8,21 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-WATCH_PID="${1:?usage: $0 TRAINER_OR_WRAPPER_PID [HOURS]}"
+WATCH_PID="${1:?usage: $0 TRAINER_OR_WRAPPER_PID [HOURS] [OUTPUT_DIR]}"
 CONTINUE_HOURS="${2:-3}"
+OUTPUT_DIR="${3:-outputs/mikasa10_dual}"
 
 while kill -0 "$WATCH_PID" 2>/dev/null; do
   sleep 60
 done
 
-latest_state_path="$(find outputs/mikasa10_dual -maxdepth 3 -type f \
+latest_state_path="$(find "$OUTPUT_DIR" -maxdepth 3 -type f \
   -name 'trainer_state--*_checkpoint.pt' -printf '%p\n' \
   | sed -n 's/.*\/trainer_state--\([0-9][0-9]*\)_checkpoint\.pt$/\1 &/p' \
   | sort -n | tail -n 1 | cut -d' ' -f2-)"
 
 if [[ -z "$latest_state_path" ]]; then
-  echo "No dual checkpoint found after watched process exited" >&2
+  echo "No dual checkpoint found after watched process exited in $OUTPUT_DIR" >&2
   exit 1
 fi
 
@@ -66,4 +67,5 @@ EFFECTIVE_BATCH_SIZE="${EFFECTIVE_BATCH_SIZE:-24}" \
     --model.config_path="$checkpoint" \
     --resume_path="$checkpoint" \
     --resume_step="$step" \
-    --restore_trainer_state=true
+    --restore_trainer_state=true \
+    --output_dir="$OUTPUT_DIR"
