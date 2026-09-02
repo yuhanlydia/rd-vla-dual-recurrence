@@ -66,4 +66,4 @@ EFFECTIVE_BATCH_SIZE="${EFFECTIVE_BATCH_SIZE:-24}" \
     --model.config_path="$checkpoint" \
     --resume_path="$checkpoint" \
     --resume_step="$step" \
-    --restore_trainer_state=false
+    --restore_trainer_state=true

@@ -50,7 +50,7 @@ PY
     bash scripts/run_mikasa_10h.sh "$CONFIG" \
       --model.config_path="${latest_state_path%/trainer_state--*_checkpoint.pt}" \
       --resume_path="${latest_state_path%/trainer_state--*_checkpoint.pt}" \
-      --resume_step="$step" --restore_trainer_state=false
+      --resume_step="$step" --restore_trainer_state=true
   rc=$?
   set -e
   (( $(date +%s) < DEADLINE_EPOCH )) || break

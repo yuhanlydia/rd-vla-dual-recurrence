@@ -136,6 +136,10 @@ setsid nohup bash scripts/continue_dual_after_stage.sh <wrapper-pid> 3 \
   > outputs/mikasa10_dual/continuation.log 2>&1 < /dev/null &
 ```
 
+Continuation stages restore the checkpoint's optimizer, scheduler, and RNG
+state; only the initial baseline-to-dual handoff intentionally starts with a
+fresh optimizer.
+
 To guarantee an absolute campaign deadline even if a bounded stage exits
 early (for example after a transient data-loader failure), start the takeover
 watcher alongside the supervisor. It waits without touching the live trainer,
