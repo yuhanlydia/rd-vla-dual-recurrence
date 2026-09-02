@@ -211,8 +211,21 @@ resumable with:
 ```bash
 bash scripts/run_mikasa_factorial.sh \
   outputs/mikasa10_dual \
-  outputs/mikasa_eval/factorial.jsonl
+outputs/mikasa_eval/factorial.jsonl
 ```
+
+To run the full reasoning-depth sweep on one intervention, use the append-only
+wrapper (default `K={1,2,4,8,12,16}`):
+
+```bash
+scripts/run_mikasa_k_sweep.sh \
+  outputs/mikasa10_dual/rdvla_spatial_40k \
+  outputs/mikasa_eval/k_sweep.jsonl \
+  --task RememberColor9-VLA-v0
+```
+
+Set `MEMORY=reset` (or `shuffle`/`stale`) and/or override `K_VALUES` for a
+targeted sweep; `DRY_RUN=1` expands commands without starting a simulator.
 
 It runs `(reset, 1)`, `(reset, 12)`, `(correct, 1)`, `(correct, 12)`,
 `(shuffle, 12)`, and `(stale, 12)`, then writes the interaction report beside
