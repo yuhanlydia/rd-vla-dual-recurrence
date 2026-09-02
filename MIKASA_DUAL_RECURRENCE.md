@@ -312,7 +312,8 @@ hypothesis.
 
 ## Implemented checks
 
-`tests/test_persistent_memory.py` verifies state carry, shuffled-memory causal
-intervention, and nonzero action-loss gradients into both the updater and memory
-projection. End-to-end baseline and two-step dual-recurrence GPU smoke tests have
-also completed on the 3090.
+`tests/test_persistent_memory.py` has five checks covering state carry, shuffled-memory
+causal intervention, nonzero action-loss gradients into both the updater and memory
+projection, the full `K={1,2,4,8,12,16}` sweep, and fixed-window memory dropout.
+All five pass in the project environment. End-to-end baseline and two-step
+dual-recurrence GPU smoke tests have also completed on the 3090.
