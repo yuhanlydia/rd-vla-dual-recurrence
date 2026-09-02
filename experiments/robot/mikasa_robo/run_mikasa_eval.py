@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -57,6 +58,18 @@ def _check_vulkan_render_device() -> None:
     ``vulkaninfo`` is optional; when unavailable, SAPIEN provides the final
     diagnostic.
     """
+    capabilities = os.environ.get("NVIDIA_DRIVER_CAPABILITIES", "")
+    if capabilities:
+        enabled = {part.strip().lower() for part in capabilities.split(",")}
+        if "all" not in enabled and not {"graphics", "display"}.issubset(enabled):
+            raise SystemExit(
+                "MIKASA closed-loop evaluation needs NVIDIA graphics/display "
+                "capabilities (the container currently exposes "
+                f"NVIDIA_DRIVER_CAPABILITIES={capabilities!r}). Restart the "
+                "container with NVIDIA_DRIVER_CAPABILITIES=compute,utility,"
+                "graphics,display, then rerun."
+            )
+
     vulkaninfo = shutil.which("vulkaninfo")
     if vulkaninfo is None:
         return

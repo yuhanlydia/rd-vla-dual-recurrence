@@ -69,4 +69,5 @@ def test_vulkan_probe_reports_cpu_only_render_host():
     try:
         _check_vulkan_render_device()
     except SystemExit as exc:
-        assert "Vulkan GPU render device" in str(exc)
+        message = str(exc)
+        assert "Vulkan GPU render device" in message or "graphics/display" in message

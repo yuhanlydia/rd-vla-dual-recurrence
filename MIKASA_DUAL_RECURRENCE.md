@@ -199,6 +199,12 @@ requires a working Vulkan-capable NVIDIA driver in addition to CUDA. The
 evaluator runs a `vulkaninfo --summary` preflight before loading the checkpoint
 and exits with an actionable message when the host exposes only llvmpipe or a
 broken ICD; this avoids a late SAPIEN renderer crash after model initialization.
+In a Docker/NVIDIA container, request graphics capabilities at container
+startup (the training-only default `compute,utility` is insufficient):
+
+```bash
+NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics,display
+```
 
 The memory phase currently requires gradient accumulation 1 because its loss is
 already accumulated across the 16-step environment-time TBPTT window.
