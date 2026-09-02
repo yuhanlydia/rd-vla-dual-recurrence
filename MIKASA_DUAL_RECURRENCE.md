@@ -147,7 +147,8 @@ bash scripts/continue_dual_after_stage.sh <wrapper-pid> 3 outputs/mikasa10_dual_
 ```
 
 Set `DRY_RUN=1` to validate the newest checkpoint and print the handoff
-without launching another trainer stage.
+without launching another trainer stage; dry-run mode does not wait for a
+currently live wrapper PID.
 
 Continuation stages restore the checkpoint's optimizer, scheduler, and RNG
 state; only the initial baseline-to-dual handoff intentionally starts with a
