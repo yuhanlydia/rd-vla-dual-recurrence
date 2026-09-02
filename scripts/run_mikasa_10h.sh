@@ -47,10 +47,15 @@ if [[ "${EVICT_DATASET_CACHE:-1}" == "1" && -d "data/mikasa_robo_vla_rlds" ]]; t
   trap '[[ -n "${CACHE_EVICT_PID}" ]] && kill "${CACHE_EVICT_PID}" 2>/dev/null || true' EXIT INT TERM
 fi
 
-exec .venv/bin/torchrun --standalone --nnodes 1 --nproc-per-node 1 \
+# Keep the shell alive while torchrun runs so the EXIT trap can reap the
+# cache-eviction sidecar.  Using `exec` here would bypass that cleanup and
+# leave a sidecar behind after a normal trainer exit.
+TRAIN_STATUS=0
+.venv/bin/torchrun --standalone --nnodes 1 --nproc-per-node 1 \
   run.py --config "$CONFIG" --mode train \
   --batch_size="$BATCH_SIZE" \
   --data.episode_shuffle_buffer="$EPISODE_SHUFFLE_BUFFER" \
   --grad_accumulation_steps="$GRAD_ACCUMULATION_STEPS" \
   --max_wall_time_hours="$MAX_WALL_TIME_HOURS" \
-  "$@"
+  "$@" || TRAIN_STATUS=$?
+exit "$TRAIN_STATUS"
