@@ -206,6 +206,10 @@ startup (the training-only default `compute,utility` is insufficient):
 NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics,display
 ```
 
+This must be set when the container is created; exporting it inside an
+already-running training container cannot mount the missing Vulkan driver
+libraries/device nodes retroactively.
+
 The memory phase currently requires gradient accumulation 1 because its loss is
 already accumulated across the 16-step environment-time TBPTT window.
 
