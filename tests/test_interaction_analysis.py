@@ -74,3 +74,29 @@ def test_paired_bootstrap_preserves_episode_seed_structure():
     assert report["interaction"] == 1.0
     assert report["episodes"] == 8
     assert report["ci95"] == [1.0, 1.0]
+
+
+def test_paired_bootstrap_excludes_incomplete_episode():
+    rows = []
+    for seed in range(3):
+        conditions = (
+            ("reset", 1, 0),
+            ("reset", 12, 0),
+            ("correct", 1, 0),
+            ("correct", 12, 1),
+        )
+        if seed == 2:
+            conditions = conditions[:-1]
+        for memory, k, success in conditions:
+            rows.append({
+                "task": "long_incomplete",
+                "horizon": "long",
+                "episode_seed": seed,
+                "memory": memory,
+                "k": k,
+                "success": success,
+            })
+
+    report = paired_bootstrap_interaction(rows, samples=100, seed=3)["long_incomplete"]
+    assert report["episodes"] == 2
+    assert report["interaction"] == 1.0
