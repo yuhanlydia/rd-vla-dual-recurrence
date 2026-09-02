@@ -61,7 +61,9 @@ max_wall_time_hours: 10
 use_val_set: true
 val_freq: 1000
 val_time_limit: 60
-save_freq: 2000
+# Keep recovery points frequent enough that a pre-emption does not lose a
+# multi-hour stage; save_latest_only keeps disk usage bounded.
+save_freq: 500
 save_latest_only: true
 merge_lora: false
 output_dir: outputs/mikasa10_dual
