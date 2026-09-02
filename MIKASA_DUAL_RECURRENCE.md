@@ -216,6 +216,11 @@ The saved pilot action head contains 9,588,224 persistent-memory parameters
 (counted from `action_head--latest_checkpoint.pt`), while the frozen backbone
 and recurrent core remain unchanged.
 
+The downloaded TFRecord metadata independently validates 250 trajectories for
+each of the 10 pilot environments (2,500 total), with seven-dimensional actions;
+the observed episode-length ranges span 11--964 decisions across the short and
+long variants.
+
 ## Analysis
 
 Closed-loop evaluation rows use JSONL with at least `task`, `horizon`,
