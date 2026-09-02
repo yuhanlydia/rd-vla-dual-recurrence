@@ -127,10 +127,41 @@ def test_main_writes_and_resumes_append_only_jsonl():
     old_env = eval_runner._make_eval_env
     old_check = eval_runner._check_vulkan_render_device
     old_argv = sys.argv[:]
+    fake_root = types.ModuleType("mikasa_robo_suite")
+    fake_root.__path__ = []
+    fake_vla = types.ModuleType("mikasa_robo_suite.vla")
+    fake_vla.__path__ = []
+    fake_benchmark = types.ModuleType("mikasa_robo_suite.vla.benchmarking")
+
+    class _FakeBenchmarkConfig:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    fake_benchmark.BenchmarkConfig = _FakeBenchmarkConfig
+    fake_benchmark.make_benchmark_env = lambda *args, **kwargs: _FakeEnv()
+    fake_benchmark.select_benchmark_tasks = lambda **kwargs: [
+        types.SimpleNamespace(
+            env_id="RememberColor9-VLA-v0",
+            split="short",
+            memory_type="object",
+            language_instruction="remember the color",
+        )
+    ]
+    old_modules = {
+        name: sys.modules.get(name)
+        for name in (
+            "mikasa_robo_suite",
+            "mikasa_robo_suite.vla",
+            "mikasa_robo_suite.vla.benchmarking",
+        )
+    }
     try:
         eval_runner.RDVLAMemoryPolicy = _FakePolicy
         eval_runner._make_eval_env = lambda task, config, sim_backend: _FakeEnv()
         eval_runner._check_vulkan_render_device = lambda: None
+        sys.modules["mikasa_robo_suite"] = fake_root
+        sys.modules["mikasa_robo_suite.vla"] = fake_vla
+        sys.modules["mikasa_robo_suite.vla.benchmarking"] = fake_benchmark
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "episodes.jsonl"
             sys.argv = [
@@ -155,6 +186,11 @@ def test_main_writes_and_resumes_append_only_jsonl():
         eval_runner._make_eval_env = old_env
         eval_runner._check_vulkan_render_device = old_check
         sys.argv = old_argv
+        for name, module in old_modules.items():
+            if module is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = module
 
 
 def test_cpu_simulation_uses_vulkan_gpu_renderer():
