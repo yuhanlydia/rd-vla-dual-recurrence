@@ -60,6 +60,11 @@ print(f"Validated checkpoint step={expected_step}: optimizer/scheduler/RNG state
 PY
 
 echo "Resuming dual stage from $checkpoint (step $step) for ${CONTINUE_HOURS}h"
+if [[ "${DRY_RUN:-0}" == "1" ]]; then
+  echo "DRY_RUN: would resume output_dir=$OUTPUT_DIR batch=${BATCH_SIZE:-24} effective_batch=${EFFECTIVE_BATCH_SIZE:-24}"
+  exit 0
+fi
+
 MAX_WALL_TIME_HOURS="$CONTINUE_HOURS" \
 BATCH_SIZE="${BATCH_SIZE:-24}" \
 EFFECTIVE_BATCH_SIZE="${EFFECTIVE_BATCH_SIZE:-24}" \

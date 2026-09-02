@@ -143,6 +143,9 @@ started outside the default `outputs/mikasa10_dual`, for example:
 bash scripts/continue_dual_after_stage.sh <wrapper-pid> 3 outputs/mikasa10_dual_fixed
 ```
 
+Set `DRY_RUN=1` to validate the newest checkpoint and print the handoff
+without launching another trainer stage.
+
 Continuation stages restore the checkpoint's optimizer, scheduler, and RNG
 state; only the initial baseline-to-dual handoff intentionally starts with a
 fresh optimizer.
