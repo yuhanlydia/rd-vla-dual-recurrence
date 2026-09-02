@@ -206,6 +206,10 @@ startup (the training-only default `compute,utility` is insufficient):
 NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics,display
 ```
 
+The evaluator's `--sim-backend cpu` option selects CPU physics but deliberately
+keeps a GPU/Vulkan render backend, which is required by the installed SAPIEN
+version for RGB observations.
+
 This must be set when the container is created; exporting it inside an
 already-running training container cannot mount the missing Vulkan driver
 libraries/device nodes retroactively.
