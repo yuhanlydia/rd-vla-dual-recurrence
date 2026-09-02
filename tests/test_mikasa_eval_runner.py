@@ -1,6 +1,7 @@
 import json
 import sys
 import tempfile
+import types
 from pathlib import Path
 
 import torch
@@ -154,3 +155,42 @@ def test_main_writes_and_resumes_append_only_jsonl():
         eval_runner._make_eval_env = old_env
         eval_runner._check_vulkan_render_device = old_check
         sys.argv = old_argv
+
+
+def test_cpu_simulation_uses_vulkan_gpu_renderer():
+    calls = {}
+    fake_gym = types.ModuleType("gymnasium")
+
+    def make(*args, **kwargs):
+        calls["env_id"] = args[0]
+        calls.update(kwargs)
+        return object()
+
+    fake_gym.make = make
+    fake_benchmark = types.ModuleType("mikasa_robo_suite.vla.benchmarking")
+    fake_benchmark.apply_mikasa_vla_wrappers = lambda env, include_overlays: env
+    old_gym = sys.modules.get("gymnasium")
+    old_benchmark = sys.modules.get("mikasa_robo_suite.vla.benchmarking")
+    sys.modules["gymnasium"] = fake_gym
+    sys.modules["mikasa_robo_suite.vla.benchmarking"] = fake_benchmark
+    try:
+        task = types.SimpleNamespace(env_id="RememberColor9-VLA-v0")
+        config = types.SimpleNamespace(
+            save_videos=False,
+            obs_mode="rgb",
+            control_mode="pd_ee_delta_pose",
+            reward_mode="sparse",
+            include_overlays=False,
+        )
+        eval_runner._make_eval_env(task, config, "cpu")
+        assert calls["sim_backend"] == "cpu"
+        assert calls["render_backend"] == "gpu"
+    finally:
+        if old_gym is None:
+            sys.modules.pop("gymnasium", None)
+        else:
+            sys.modules["gymnasium"] = old_gym
+        if old_benchmark is None:
+            sys.modules.pop("mikasa_robo_suite.vla.benchmarking", None)
+        else:
+            sys.modules["mikasa_robo_suite.vla.benchmarking"] = old_benchmark

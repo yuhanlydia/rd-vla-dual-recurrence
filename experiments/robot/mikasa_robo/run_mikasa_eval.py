@@ -53,8 +53,10 @@ def _check_vulkan_render_device() -> None:
     """Fail before model loading when SAPIEN cannot see a Vulkan GPU.
 
     ManiSkill's SAPIEN build still creates a Vulkan render system for the
-    ``sim_backend=cpu`` path. On headless hosts with only llvmpipe this can
-    otherwise fail (or segfault) after the 2.5 GB checkpoint has loaded.
+    ``sim_backend=cpu`` path. CPU physics therefore uses a GPU/Vulkan render
+    device; requesting ``render_backend=cpu`` is unsupported. On headless hosts
+    with only llvmpipe this can otherwise fail (or segfault) after the 2.5 GB
+    checkpoint has loaded.
     ``vulkaninfo`` is optional; when unavailable, SAPIEN provides the final
     diagnostic.
     """
@@ -239,7 +241,10 @@ def _make_eval_env(task, config, sim_backend: str):
         render_mode=render_mode,
         reward_mode=config.reward_mode,
         sim_backend="cpu",
-        render_backend="cpu",
+        # SAPIEN does not provide a CPU RenderSystem in this build. CPU physics
+        # is compatible with the GPU/Vulkan renderer and is the intended
+        # fallback when CUDA simulation is unavailable.
+        render_backend="gpu",
     )
     return apply_mikasa_vla_wrappers(env, include_overlays=config.include_overlays or config.save_videos)
 
