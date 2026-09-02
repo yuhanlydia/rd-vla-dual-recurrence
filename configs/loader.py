@@ -241,6 +241,7 @@ def _convert_train_config(cfg: TrainConfig):
     legacy.phase = "Training"
     legacy.env_tbptt_length = cfg.env_tbptt_length
     legacy.k_train = cfg.k_train
+    legacy.memory_dropout = cfg.action_head.recurrent.memory_dropout
     legacy.train_memory_only = cfg.train_memory_only
     legacy.max_wall_time_hours = cfg.max_wall_time_hours
 
