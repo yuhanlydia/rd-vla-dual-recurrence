@@ -212,6 +212,9 @@ libraries/device nodes retroactively.
 
 The memory phase currently requires gradient accumulation 1 because its loss is
 already accumulated across the 16-step environment-time TBPTT window.
+The saved pilot action head contains 9,588,224 persistent-memory parameters
+(counted from `action_head--latest_checkpoint.pt`), while the frozen backbone
+and recurrent core remain unchanged.
 
 ## Analysis
 
