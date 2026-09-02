@@ -1,4 +1,8 @@
-from experiments.robot.mikasa_robo.interaction_analysis import go_no_go, interactions
+from experiments.robot.mikasa_robo.interaction_analysis import (
+    go_no_go,
+    interactions,
+    paired_bootstrap_interaction,
+)
 
 
 def _rows():
@@ -44,3 +48,29 @@ def test_positive_factorial_interaction_and_gate():
 def test_gate_rejects_missing_memory_destruction_evidence():
     rows = [row for row in _rows() if row["memory"] != "shuffle"]
     assert not go_no_go(rows)["go"]
+
+
+def test_paired_bootstrap_preserves_episode_seed_structure():
+    rows = []
+    for seed in range(8):
+        for memory, k, success in (
+            ("reset", 1, 0),
+            ("reset", 12, 0),
+            ("correct", 1, 0),
+            ("correct", 12, 1),
+        ):
+            rows.append(
+                {
+                    "task": "long_probe",
+                    "horizon": "long",
+                    "episode_seed": seed,
+                    "memory": memory,
+                    "k": k,
+                    "success": success,
+                }
+            )
+
+    report = paired_bootstrap_interaction(rows, samples=300, seed=7)["long_probe"]
+    assert report["interaction"] == 1.0
+    assert report["episodes"] == 8
+    assert report["ci95"] == [1.0, 1.0]
