@@ -210,6 +210,12 @@ This must be set when the container is created; exporting it inside an
 already-running training container cannot mount the missing Vulkan driver
 libraries/device nodes retroactively.
 
+Run the cheap runtime check before loading a checkpoint:
+
+```bash
+scripts/check_mikasa_runtime.sh
+```
+
 The memory phase currently requires gradient accumulation 1 because its loss is
 already accumulated across the 16-step environment-time TBPTT window.
 The saved pilot action head contains 9,588,224 persistent-memory parameters
