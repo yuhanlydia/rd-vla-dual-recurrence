@@ -10,6 +10,7 @@ import experiments.robot.mikasa_robo.run_mikasa_eval as eval_runner
 from experiments.robot.mikasa_robo.run_mikasa_eval import (
     _check_vulkan_render_device,
     _require_canonical_tasks,
+    parse_args,
     run_episode,
 )
 
@@ -97,6 +98,27 @@ def test_vulkan_probe_rejects_unrecognised_empty_report(monkeypatch):
         assert "requires a Vulkan GPU render device" in str(exc)
     else:
         raise AssertionError("empty Vulkan report was incorrectly accepted")
+
+
+def test_cli_exposes_stale_delta(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_mikasa_eval.py",
+            "--checkpoint",
+            "checkpoint",
+            "--output",
+            "results.jsonl",
+            "--k",
+            "12",
+            "--memory",
+            "stale",
+            "--stale-delta",
+            "37",
+        ],
+    )
+    assert parse_args().stale_delta == 37
 
 
 def test_main_writes_and_resumes_append_only_jsonl():
