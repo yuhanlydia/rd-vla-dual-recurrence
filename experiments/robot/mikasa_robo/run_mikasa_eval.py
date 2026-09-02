@@ -117,7 +117,9 @@ def _scalar(value, default=0):
 class RDVLAMemoryPolicy:
     chunk_size = 8
 
-    def __init__(self, checkpoint: Path, instruction: str, k: int, memory: str):
+    def __init__(
+        self, checkpoint: Path, instruction: str, k: int, memory: str, stale_delta: int = 100
+    ):
         from experiments.robot.openvla_utils import (
             get_action_head,
             get_processor,
@@ -147,7 +149,8 @@ class RDVLAMemoryPolicy:
         self.proprio_projector = get_proprio_projector(self.cfg, self.vla.llm_dim, proprio_dim=7)
         self.instruction = instruction
         self.memory_mode = memory
-        self.intervention = MemoryIntervention(mode=memory)
+        self.stale_delta = int(stale_delta)
+        self.intervention = MemoryIntervention(mode=memory, stale_delta=self.stale_delta)
         self.memory_state = None
         self.previous_action = None
 
@@ -155,7 +158,9 @@ class RDVLAMemoryPolicy:
         self.instruction = instruction
         self.memory_state = None
         self.previous_action = None
-        self.intervention = MemoryIntervention(mode=self.memory_mode)
+        self.intervention = MemoryIntervention(
+            mode=self.memory_mode, stale_delta=self.stale_delta
+        )
 
     def reset_episode(self) -> None:
         self.intervention.reset_episode(self.memory_state)
@@ -263,6 +268,12 @@ def parse_args():
     parser.add_argument("--start-seed", type=int, default=4242424242)
     parser.add_argument("--k", type=int, choices=(1, 2, 4, 8, 12, 16), required=True)
     parser.add_argument("--memory", choices=("correct", "reset", "shuffle", "stale"), required=True)
+    parser.add_argument(
+        "--stale-delta",
+        type=int,
+        default=100,
+        help="Physical-time lag Δ for --memory stale (default: 100 decisions)",
+    )
     parser.add_argument("--sim-backend", choices=("cpu", "gpu"), default="gpu")
     return parser.parse_args()
 
@@ -300,7 +311,13 @@ def main():
     with args.output.open("a", encoding="utf-8") as output_file:
         for task in tasks:
             if policy is None:
-                policy = RDVLAMemoryPolicy(args.checkpoint, task.language_instruction, args.k, args.memory)
+                policy = RDVLAMemoryPolicy(
+                    args.checkpoint,
+                    task.language_instruction,
+                    args.k,
+                    args.memory,
+                    stale_delta=args.stale_delta,
+                )
             else:
                 policy.set_instruction(task.language_instruction)
             config = BenchmarkConfig(sim_backend=args.sim_backend)

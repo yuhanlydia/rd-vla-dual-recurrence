@@ -103,7 +103,7 @@ def test_main_writes_and_resumes_append_only_jsonl():
     """Exercise canonical selection, episode execution, and resume skipping."""
 
     class _FakePolicy:
-        def __init__(self, checkpoint, instruction, k, memory):
+        def __init__(self, checkpoint, instruction, k, memory, stale_delta=100):
             self.instruction = instruction
             self.calls = 0
 

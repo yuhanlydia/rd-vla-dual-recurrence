@@ -214,8 +214,10 @@ bash scripts/run_mikasa_factorial.sh \
   outputs/mikasa_eval/factorial.jsonl
 ```
 
-It runs `(reset, 1)`, `(reset, 12)`, `(correct, 1)`, `(correct, 12)`, and
-`(shuffle, 12)`, then writes the interaction report beside the JSONL. Set
+It runs `(reset, 1)`, `(reset, 12)`, `(correct, 1)`, `(correct, 12)`,
+`(shuffle, 12)`, and `(stale, 12)`, then writes the interaction report beside
+the JSONL. The stale lag defaults to 100 decisions and can be overridden with
+`--stale-delta` when invoking `run_mikasa_eval.sh`. Set
 `DRY_RUN=1` to print all six expanded evaluator invocations without starting
 a simulator; this validates checkpoint/output paths before requesting a
 graphics-capable runtime. The evaluator resets
