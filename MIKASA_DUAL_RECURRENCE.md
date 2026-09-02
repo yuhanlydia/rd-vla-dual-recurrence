@@ -235,6 +235,11 @@ The evaluator's `--sim-backend cpu` option selects CPU physics but deliberately
 keeps a GPU/Vulkan render backend, which is required by the installed SAPIEN
 version for RGB observations.
 
+`scripts/run_mikasa_eval.sh` also supplies the system `pkg_resources`
+compatibility module when the venv's newer setuptools omits it (SAPIEN
+3.0.0b1 still imports that API). This is a Python packaging compatibility
+shim only; it cannot substitute for the Vulkan driver/device mount.
+
 This must be set when the container is created; exporting it inside an
 already-running training container cannot mount the missing Vulkan driver
 libraries/device nodes retroactively.
