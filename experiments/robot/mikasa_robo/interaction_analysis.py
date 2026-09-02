@@ -16,6 +16,10 @@ CONDITIONS = {
     "memory": ("correct", 1),
     "dual": ("correct", 12),
 }
+DESTRUCTION_CONDITIONS = {
+    "shuffle": ("shuffle", 12),
+    "stale": ("stale", 12),
+}
 
 
 def _condition(row):
@@ -52,6 +56,27 @@ def condition_coverage(rows):
     for task in sorted(counts):
         cells = {
             name: int(counts[task].get(name, 0)) for name in CONDITIONS
+        }
+        output[task] = {
+            "counts": cells,
+            "complete": all(value > 0 for value in cells.values()),
+        }
+    return output
+
+
+def destruction_coverage(rows):
+    """Count the state-destruction intervention cells per task."""
+    counts = defaultdict(Counter)
+    for row in rows:
+        key = (row.get("memory"), int(row.get("k", -1)))
+        for name, expected in DESTRUCTION_CONDITIONS.items():
+            if key == expected:
+                counts[row["task"]][name] += 1
+    output = {}
+    for task in sorted(counts):
+        cells = {
+            name: int(counts[task].get(name, 0))
+            for name in DESTRUCTION_CONDITIONS
         }
         output[task] = {
             "counts": cells,
@@ -166,6 +191,7 @@ def main():
     rows = [json.loads(line) for line in args.results.read_text().splitlines() if line.strip()]
     report = {
         "coverage": condition_coverage(rows),
+        "destruction_coverage": destruction_coverage(rows),
         "tasks": interactions(rows),
         "bootstrap": paired_bootstrap_interaction(rows, args.bootstrap_samples),
         "gate": go_no_go(rows),

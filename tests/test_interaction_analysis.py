@@ -1,5 +1,6 @@
 from experiments.robot.mikasa_robo.interaction_analysis import (
     condition_coverage,
+    destruction_coverage,
     go_no_go,
     interactions,
     paired_bootstrap_interaction,
@@ -125,3 +126,9 @@ def test_condition_coverage_makes_partial_append_only_runs_auditable():
     assert coverage["long_0"]["counts"]["dual"] == 0
     assert coverage["long_0"]["complete"] is False
     assert coverage["long_1"]["complete"] is True
+
+
+def test_destruction_coverage_reports_shuffle_and_stale_cells():
+    coverage = destruction_coverage(_rows())
+    assert coverage["long_0"]["counts"] == {"shuffle": 4, "stale": 0}
+    assert coverage["long_0"]["complete"] is False

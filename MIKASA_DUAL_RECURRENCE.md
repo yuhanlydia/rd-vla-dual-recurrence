@@ -227,6 +227,8 @@ requires a working Vulkan-capable NVIDIA driver in addition to CUDA. The
 evaluator runs a `vulkaninfo --summary` preflight before loading the checkpoint
 and exits with an actionable message when the host exposes only llvmpipe or a
 broken ICD; this avoids a late SAPIEN renderer crash after model initialization.
+The generated interaction report includes both factorial-cell coverage and a
+separate `destruction_coverage` section for shuffle/stale interventions.
 In a Docker/NVIDIA container, request graphics capabilities at container
 startup (the training-only default `compute,utility` is insufficient):
 
