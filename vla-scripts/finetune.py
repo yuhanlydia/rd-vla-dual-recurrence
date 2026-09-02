@@ -156,7 +156,8 @@ def init_module(module_class, module_name, cfg, device_id, module_args, to_bf16=
 
 def run_forward_pass(vla, action_head, proprio_projector, batch, action_tokenizer, device_id,
                      use_proprio, use_film, num_patches, cfg=None, memory_state=None,
-                     previous_action=None, num_iter=None, memory_dropout=True):
+                     previous_action=None, num_iter=None, memory_dropout=True,
+                     memory_dropout_mask=None):
     metrics = {}
     ground_truth_actions = batch["actions"].to(device_id).to(torch.bfloat16)
 
@@ -197,6 +198,7 @@ def run_forward_pass(vla, action_head, proprio_projector, batch, action_tokenize
         previous_action=previous_action,
         num_iter=num_iter,
         memory_dropout=memory_dropout,
+        memory_dropout_mask=memory_dropout_mask,
         return_memory=bool(action_head.module.cfg.use_persistent_memory),
     )
     if action_head.module.cfg.use_persistent_memory:
@@ -681,6 +683,7 @@ def finetune(cfg):
         previous_action = None
         tbptt_loss = None
         tbptt_count = 0
+        memory_dropout_mask = None
         optimizer_step = 0
         if torch.cuda.is_available():
             torch.cuda.reset_peak_memory_stats(device_id)
@@ -697,6 +700,14 @@ def finetune(cfg):
                     reset_action = batch["is_first"].to(device_id).view(-1, 1)
                     previous_action = torch.where(reset_action, torch.zeros_like(previous_action), previous_action)
 
+                # Keep one memory-dropout decision for the whole
+                # environment-time TBPTT window (sequence-level dropout).
+                if memory_enabled and tbptt_count == 0:
+                    memory_dropout_mask = (
+                        torch.rand(batch["input_ids"].shape[0], device=device_id)
+                        >= cfg.memory_dropout
+                    )
+
                 sampled_k = random.choice(cfg.k_train) if memory_enabled else None
                 loss, metrics, new_memory_state = run_forward_pass(
                     vla=vla, action_head=action_head, proprio_projector=proprio_projector if cfg.use_proprio else None,
@@ -705,6 +716,7 @@ def finetune(cfg):
                     use_film=cfg.use_film, num_patches=NUM_PATCHES, cfg=cfg,
                     memory_state=memory_state, previous_action=previous_action,
                     num_iter=sampled_k,
+                    memory_dropout_mask=memory_dropout_mask,
                 )
 
                 if memory_enabled:
@@ -765,6 +777,7 @@ def finetune(cfg):
                         memory_state = memory_state.detach()
                         tbptt_loss = None
                         tbptt_count = 0
+                        memory_dropout_mask = None
 
                 if ready_to_step and completed_log_step > 0 and completed_log_step % cfg.save_freq == 0:
                     save_training_checkpoint(

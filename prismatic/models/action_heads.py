@@ -317,7 +317,8 @@ class VLARecurrent(nn.Module):
                 kl_thresh: float = 0.001, cos_thresh: float = 0.999,
                 max_iter: int = 32, memory_state: torch.Tensor = None,
                 previous_action: torch.Tensor = None, disable_memory: bool = False,
-                memory_dropout: bool = True, return_memory: bool = False,
+                memory_dropout: bool = True, memory_dropout_mask: torch.Tensor = None,
+                return_memory: bool = False,
                 **kwargs) -> torch.Tensor:
         B = h_a.size(0)
         device, dtype = h_a.device, h_a.dtype
@@ -342,7 +343,15 @@ class VLARecurrent(nn.Module):
             previous_action = previous_action.reshape(B, self.cfg.action_dim).to(device=device, dtype=dtype)
             new_memory_state = self.memory_updater(memory_state, prelude_out, previous_action)
             if self.training and memory_dropout and self.cfg.memory_dropout > 0:
-                keep = torch.rand(B, 1, 1, device=device) >= self.cfg.memory_dropout
+                if memory_dropout_mask is None:
+                    keep = torch.rand(B, 1, 1, device=device) >= self.cfg.memory_dropout
+                else:
+                    if memory_dropout_mask.numel() != B:
+                        raise ValueError(
+                            "memory_dropout_mask must contain one value per batch item, "
+                            f"got {tuple(memory_dropout_mask.shape)}"
+                        )
+                    keep = memory_dropout_mask.to(device=device).reshape(B, 1, 1).bool()
                 memory_for_reasoning = new_memory_state * keep.to(dtype)
             else:
                 memory_for_reasoning = new_memory_state

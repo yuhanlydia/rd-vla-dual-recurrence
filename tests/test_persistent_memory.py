@@ -98,3 +98,21 @@ def test_reasoning_depth_sweep_preserves_action_shape_and_finiteness():
         )
         assert prediction.shape == (1, 4, 7)
         assert torch.isfinite(prediction).all()
+
+
+def test_memory_dropout_mask_can_be_fixed_for_a_tbptt_window():
+    torch.manual_seed(4)
+    model = _model().train()
+    model.cfg.memory_dropout = 0.3
+    h_a, h_t, proprio, previous_action = _inputs()
+    torch.manual_seed(9)
+    dropped = model(
+        h_a, h_t, proprio, previous_action=previous_action, num_iter=1,
+        memory_dropout_mask=torch.zeros(2),
+    )
+    torch.manual_seed(9)
+    kept = model(
+        h_a, h_t, proprio, previous_action=previous_action, num_iter=1,
+        memory_dropout_mask=torch.ones(2),
+    )
+    assert not torch.allclose(dropped, kept)
