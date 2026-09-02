@@ -102,6 +102,9 @@ Probe the largest batch that completes a real forward/backward:
 bash scripts/probe_batch_size.sh
 ```
 
+The probe descends through `64,32,24,16,12,10,8,4,2,1`; set
+`PROBE_BATCHES="..."` to override the sequence for a targeted check.
+
 Run a wall-clock-bounded baseline. It stops after ten hours at an optimizer-step
 boundary and saves a resumable checkpoint:
 
