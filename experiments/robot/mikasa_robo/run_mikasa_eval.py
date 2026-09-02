@@ -92,13 +92,17 @@ def _check_vulkan_render_device() -> None:
     gpu_types = {kind for kind in device_types if kind.endswith("_GPU")}
     if gpu_types:
         return
-    if "llvmpipe" in report.lower() or "vkcreateinstance" in report.lower():
-        raise SystemExit(
-            "MIKASA closed-loop evaluation requires a Vulkan GPU render device. "
-            "vulkaninfo found no discrete/integrated GPU (only llvmpipe or a "
-            "broken ICD). Install/fix the NVIDIA Vulkan ICD, then rerun; the "
-            "CPU simulator backend does not remove this SAPIEN render requirement."
-        )
+    # SAPIEN has no CPU RenderSystem in the installed build.  Treat an empty
+    # or otherwise unrecognised vulkaninfo report as a hard failure too; only
+    # seeing a physical GPU device type is sufficient to proceed.  This keeps
+    # renderer failures before the multi-gigabyte checkpoint is loaded.
+    raise SystemExit(
+        "MIKASA closed-loop evaluation requires a Vulkan GPU render device. "
+        "vulkaninfo found no discrete/integrated GPU (only llvmpipe, a broken "
+        "ICD, or an unrecognised report). Install/fix the NVIDIA Vulkan ICD, "
+        "then rerun; the CPU simulator backend does not remove this SAPIEN "
+        "render requirement."
+    )
 
 
 def _scalar(value, default=0):

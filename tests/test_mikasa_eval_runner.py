@@ -80,6 +80,25 @@ def test_vulkan_probe_reports_cpu_only_render_host():
         assert "Vulkan GPU render device" in message or "graphics" in message
 
 
+def test_vulkan_probe_rejects_unrecognised_empty_report(monkeypatch):
+    monkeypatch.setenv("NVIDIA_DRIVER_CAPABILITIES", "graphics")
+    monkeypatch.setattr(eval_runner.shutil, "which", lambda _: "vulkaninfo")
+
+    class _Result:
+        stdout = ""
+        stderr = ""
+
+    monkeypatch.setattr(
+        eval_runner.subprocess, "run", lambda *args, **kwargs: _Result()
+    )
+    try:
+        _check_vulkan_render_device()
+    except SystemExit as exc:
+        assert "requires a Vulkan GPU render device" in str(exc)
+    else:
+        raise AssertionError("empty Vulkan report was incorrectly accepted")
+
+
 def test_main_writes_and_resumes_append_only_jsonl():
     """Exercise canonical selection, episode execution, and resume skipping."""
 
