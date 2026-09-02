@@ -195,6 +195,11 @@ GO/NO-GO gate with:
 python experiments/robot/mikasa_robo/interaction_analysis.py results.jsonl
 ```
 
+For the pilot's paired short/long comparison, a task is treated as long when
+its official horizon split is `Long` **or** its task ID contains `-Long-`.
+MIKASA labels some 600-step `*-Long-VLA-v0` environments as `Medium`, so using
+the ID keeps all five intended long families in the preregistered gate.
+
 ## Important limitation
 
 With environment-time TBPTT 16, action supervision cannot backpropagate from a
