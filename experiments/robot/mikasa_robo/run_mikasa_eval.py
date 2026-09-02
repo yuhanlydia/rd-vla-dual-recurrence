@@ -34,6 +34,17 @@ PILOT_TASKS = [
 ]
 
 
+def _require_canonical_tasks(tasks):
+    """Reject silent ``custom`` fallbacks from the benchmark task selector."""
+    unknown = [task.env_id for task in tasks if task.split == "custom"]
+    if unknown:
+        raise SystemExit(
+            "Unknown MIKASA task ID(s); refusing custom fallback: "
+            + ", ".join(unknown)
+        )
+    return tasks
+
+
 def _scalar(value, default=0):
     if value is None:
         return default
@@ -208,10 +219,10 @@ def main():
             "then invoke this script with that environment."
         ) from exc
 
-    tasks = select_benchmark_tasks(
+    tasks = _require_canonical_tasks(select_benchmark_tasks(
         env_ids=args.tasks or PILOT_TASKS,
         csv_path=args.mikasa_root / "mikasa_robo_vla_envs.csv",
-    )
+    ))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     completed = set()
     if args.output.exists():

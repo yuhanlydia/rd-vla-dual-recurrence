@@ -1,6 +1,6 @@
 import torch
 
-from experiments.robot.mikasa_robo.run_mikasa_eval import run_episode
+from experiments.robot.mikasa_robo.run_mikasa_eval import _require_canonical_tasks, run_episode
 
 
 class _Policy:
@@ -44,3 +44,18 @@ def test_episode_resets_memory_latches_success_and_uses_chunk_fifo():
     assert success is True
     assert episode_return == 1.5
     assert length == 3
+
+
+def test_unknown_task_ids_fail_fast_instead_of_using_custom_fallback():
+    class _Task:
+        def __init__(self, env_id, split):
+            self.env_id = env_id
+            self.split = split
+
+    try:
+        _require_canonical_tasks([_Task("typo-task", "custom")])
+    except SystemExit as exc:
+        assert "Unknown MIKASA task ID" in str(exc)
+    else:
+        raise AssertionError("custom task fallback was not rejected")
+    assert _require_canonical_tasks([_Task("RememberColor9-VLA-v0", "short")])[0].env_id == "RememberColor9-VLA-v0"
