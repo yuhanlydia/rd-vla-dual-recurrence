@@ -10,6 +10,8 @@ WATCH_PID="${1:?usage: $0 WATCH_PID DEADLINE_EPOCH [CONFIG] [OUTPUT_DIR]}"
 DEADLINE_EPOCH="${2:?usage: $0 WATCH_PID DEADLINE_EPOCH [CONFIG] [OUTPUT_DIR]}"
 CONFIG="${3:-configs/train/rdvla_mikasa10_dual.yaml}"
 OUTPUT_DIR="${4:-outputs/mikasa10_dual}"
+FALLBACK_DIR="${FALLBACK_DIR:-}"
+FALLBACK_STEP="${FALLBACK_STEP:-}"
 
 while kill -0 "$WATCH_PID" 2>/dev/null; do
   sleep 60
@@ -21,8 +23,14 @@ while (( $(date +%s) < DEADLINE_EPOCH )); do
     | sed -n 's/.*\/trainer_state--\([0-9][0-9]*\)_checkpoint\.pt$/\1 &/p' \
     | sort -n | tail -n 1 | cut -d' ' -f2-)"
   if [[ -z "$latest_state_path" ]]; then
-    echo "No resumable dual checkpoint before deadline" >&2
-    exit 1
+    if [[ -n "$FALLBACK_DIR" && -n "$FALLBACK_STEP" && \
+      -f "$FALLBACK_DIR/trainer_state--${FALLBACK_STEP}_checkpoint.pt" ]]; then
+      latest_state_path="$FALLBACK_DIR/trainer_state--${FALLBACK_STEP}_checkpoint.pt"
+      echo "No checkpoint in $OUTPUT_DIR; using fallback step $FALLBACK_STEP from $FALLBACK_DIR" >&2
+    else
+      echo "No resumable dual checkpoint before deadline" >&2
+      exit 1
+    fi
   fi
 
   latest_state="${latest_state_path##*/}"
