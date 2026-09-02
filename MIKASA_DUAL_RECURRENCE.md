@@ -195,7 +195,10 @@ It runs `(reset, 1)`, `(reset, 12)`, `(correct, 1)`, `(correct, 12)`, and
 evaluator resets
 latent state at every episode and implements the official seed stream,
 action-chunk FIFO, wrapper stack, and `success_once` latch. MIKASA rendering
-requires a working Vulkan-capable NVIDIA driver in addition to CUDA.
+requires a working Vulkan-capable NVIDIA driver in addition to CUDA. The
+evaluator runs a `vulkaninfo --summary` preflight before loading the checkpoint
+and exits with an actionable message when the host exposes only llvmpipe or a
+broken ICD; this avoids a late SAPIEN renderer crash after model initialization.
 
 The memory phase currently requires gradient accumulation 1 because its loss is
 already accumulated across the 16-step environment-time TBPTT window.
