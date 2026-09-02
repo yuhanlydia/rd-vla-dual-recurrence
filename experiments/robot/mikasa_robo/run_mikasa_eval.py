@@ -335,6 +335,7 @@ def main():
                         "memory_type": task.memory_type,
                         "episode_seed": seed,
                         "memory": args.memory,
+                        "stale_delta": int(args.stale_delta),
                         "k": args.k,
                         "success": bool(success),
                         "return": float(episode_return),

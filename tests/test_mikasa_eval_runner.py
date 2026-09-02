@@ -222,6 +222,7 @@ def test_main_writes_and_resumes_append_only_jsonl():
             assert rows[0]["task"] == "RememberColor9-VLA-v0"
             assert rows[0]["success"] is True
             assert rows[0]["memory"] == "reset"
+            assert rows[0]["stale_delta"] == 100
     finally:
         eval_runner.RDVLAMemoryPolicy = old_policy
         eval_runner._make_eval_env = old_env
