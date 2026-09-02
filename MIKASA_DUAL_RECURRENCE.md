@@ -136,6 +136,18 @@ setsid nohup bash scripts/continue_dual_after_stage.sh <wrapper-pid> 3 \
   > outputs/mikasa10_dual/continuation.log 2>&1 < /dev/null &
 ```
 
+To guarantee an absolute campaign deadline even if a bounded stage exits
+early (for example after a transient data-loader failure), start the takeover
+watcher alongside the supervisor. It waits without touching the live trainer,
+then resumes from the newest validated checkpoint until the UTC deadline:
+
+```bash
+# Replace the timestamp with the campaign's actual UTC deadline.
+DEADLINE=$(date -u -d '2026-09-02 07:29:00' +%s)
+setsid nohup bash scripts/watch_dual_until_deadline.sh <supervisor-pid> "$DEADLINE" \
+  > outputs/mikasa10_dual/deadline_watchdog.log 2>&1 < /dev/null &
+```
+
 For one bounded campaign that allocates wall time to both stages, use:
 
 ```bash
