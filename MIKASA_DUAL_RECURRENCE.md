@@ -242,7 +242,7 @@ factorial interaction, paired episode-seed bootstrap intervals, and the preregis
 GO/NO-GO gate with:
 
 ```bash
-python experiments/robot/mikasa_robo/interaction_analysis.py results.jsonl
+.venv/bin/python experiments/robot/mikasa_robo/interaction_analysis.py results.jsonl
 ```
 
 For the pilot's paired short/long comparison, a task is treated as long when
