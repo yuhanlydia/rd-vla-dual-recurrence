@@ -127,6 +127,15 @@ This defaults to the measured frozen-backbone batch 24 and uses one latest
 checkpoint directory to avoid filling the experiment disk. Override with
 `BATCH_SIZE=24 EFFECTIVE_BATCH_SIZE=24` explicitly if desired.
 
+If a dual stage reaches its wall-time boundary before the campaign is finished,
+the continuation supervisor can wait for the current wrapper, find the newest
+dual checkpoint, and start another bounded stage (three hours by default):
+
+```bash
+setsid nohup bash scripts/continue_dual_after_stage.sh <wrapper-pid> 3 \
+  > outputs/mikasa10_dual/continuation.log 2>&1 < /dev/null &
+```
+
 For one bounded campaign that allocates wall time to both stages, use:
 
 ```bash
