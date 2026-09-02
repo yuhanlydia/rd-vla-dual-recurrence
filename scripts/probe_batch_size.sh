@@ -8,6 +8,11 @@ if [[ -n "${PROBE_BATCHES:-}" ]]; then
   read -r -a probe_batches <<< "$PROBE_BATCHES"
 fi
 
+if [[ "${DRY_RUN:-0}" == "1" ]]; then
+  echo "DRY_RUN: batch probe sequence=${probe_batches[*]}"
+  exit 0
+fi
+
 for batch_size in "${probe_batches[@]}"; do
   echo "Probing batch_size=${batch_size}"
   if TF_CPP_MIN_LOG_LEVEL=3 TF_FORCE_GPU_ALLOW_GROWTH=true CUDA_VISIBLE_DEVICES=0 \
