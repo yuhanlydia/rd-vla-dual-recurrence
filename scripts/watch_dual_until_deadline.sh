@@ -6,16 +6,17 @@ set -euo pipefail
 # after WATCH_PID exits, then resumes from the newest validated checkpoint.
 
 cd "$(dirname "$0")/.."
-WATCH_PID="${1:?usage: $0 WATCH_PID DEADLINE_EPOCH [CONFIG]}"
-DEADLINE_EPOCH="${2:?usage: $0 WATCH_PID DEADLINE_EPOCH [CONFIG]}"
+WATCH_PID="${1:?usage: $0 WATCH_PID DEADLINE_EPOCH [CONFIG] [OUTPUT_DIR]}"
+DEADLINE_EPOCH="${2:?usage: $0 WATCH_PID DEADLINE_EPOCH [CONFIG] [OUTPUT_DIR]}"
 CONFIG="${3:-configs/train/rdvla_mikasa10_dual.yaml}"
+OUTPUT_DIR="${4:-outputs/mikasa10_dual}"
 
 while kill -0 "$WATCH_PID" 2>/dev/null; do
   sleep 60
 done
 
 while (( $(date +%s) < DEADLINE_EPOCH )); do
-  latest_state_path="$(find outputs/mikasa10_dual -maxdepth 3 -type f \
+  latest_state_path="$(find "$OUTPUT_DIR" -maxdepth 3 -type f \
     -name 'trainer_state--*_checkpoint.pt' -printf '%p\n' \
     | sed -n 's/.*\/trainer_state--\([0-9][0-9]*\)_checkpoint\.pt$/\1 &/p' \
     | sort -n | tail -n 1 | cut -d' ' -f2-)"
@@ -50,7 +51,8 @@ PY
     bash scripts/run_mikasa_10h.sh "$CONFIG" \
       --model.config_path="${latest_state_path%/trainer_state--*_checkpoint.pt}" \
       --resume_path="${latest_state_path%/trainer_state--*_checkpoint.pt}" \
-      --resume_step="$step" --restore_trainer_state=true
+      --resume_step="$step" --restore_trainer_state=true \
+      --output_dir="$OUTPUT_DIR"
   rc=$?
   set -e
   (( $(date +%s) < DEADLINE_EPOCH )) || break

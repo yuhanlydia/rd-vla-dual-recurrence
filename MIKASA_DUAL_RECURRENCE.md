@@ -152,6 +152,9 @@ setsid nohup bash scripts/watch_dual_until_deadline.sh <supervisor-pid> "$DEADLI
   > outputs/mikasa10_dual/deadline_watchdog.log 2>&1 < /dev/null &
 ```
 
+For a run stored outside the default directory, pass the output directory as
+the fourth argument; takeover stages then resume from that directory too.
+
 For one bounded campaign that allocates wall time to both stages, use:
 
 ```bash
