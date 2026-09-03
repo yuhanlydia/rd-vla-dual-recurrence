@@ -63,7 +63,15 @@ def _check_vulkan_render_device() -> None:
     capabilities = os.environ.get("NVIDIA_DRIVER_CAPABILITIES", "")
     if capabilities:
         enabled = {part.strip().lower() for part in capabilities.split(",")}
-        if "all" not in enabled and "graphics" not in enabled:
+        # ``scripts/run_mikasa_eval.sh`` may select SAPIEN's bundled
+        # EGL-backed NVIDIA ICD in containers where the runtime capability
+        # label still says ``compute,utility``.  Let the Vulkan probe below
+        # decide whether that explicit ICD actually works.
+        if (
+            "all" not in enabled
+            and "graphics" not in enabled
+            and not os.environ.get("VK_ICD_FILENAMES")
+        ):
             raise SystemExit(
                 "MIKASA closed-loop evaluation needs NVIDIA graphics "
                 "capabilities (the container currently exposes "

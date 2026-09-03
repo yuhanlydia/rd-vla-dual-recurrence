@@ -259,19 +259,13 @@ version for RGB observations.
 
 `scripts/run_mikasa_eval.sh` also supplies the system `pkg_resources`
 compatibility module when the venv's newer setuptools omits it (SAPIEN
-3.0.0b1 still imports that API). This is a Python packaging compatibility
-shim only; it cannot substitute for the Vulkan driver/device mount.
-
-This must be set when the container is created; exporting it inside an
-already-running training container cannot mount the missing Vulkan driver
-libraries/device nodes retroactively.
-
-On the current training container, an explicit probe with
-`NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics` and
-`VK_ICD_FILENAMES=/etc/vulkan/icd.d/nvidia_icd.json` still returns
-`vkCreateInstance ... ERROR_INCOMPATIBLE_DRIVER`. This confirms that the
-remaining issue is the container's graphics-driver mount/runtime, not an
-evaluator or checkpoint failure.
+3.0.0b1 still imports that API), while keeping the venv site-packages first so
+NumPy and pyparsing are not shadowed. In this container the normal
+`/etc/vulkan/icd.d/nvidia_icd.json` is broken, so the wrapper automatically
+selects SAPIEN's bundled `vulkan_library/10_nvidia.json` (an EGL-backed NVIDIA
+ICD). `scripts/check_mikasa_runtime.sh` probes the same fallback. A fresh
+container with `NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics,display`
+is still preferred, but is not required when the bundled ICD is present.
 
 Run the cheap runtime check before loading a checkpoint:
 
