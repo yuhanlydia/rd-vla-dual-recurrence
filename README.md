@@ -14,6 +14,15 @@ JSON-only check (it does not import TensorFlow or SAPIEN):
 
 The pilot expects 10 selected tasks with 250 training trajectories each.
 
+## Pilot status (2026-09-03)
+
+The dual-recurrence checkpoint finished at step 45689 and the public repository
+contains the complete training/evaluation implementation. Runtime debugging
+also verified one real MIKASA episode end to end. Aggregate factorial and
+K-sweep scores have not been claimed; the full debug history, known runtime
+issues, and exact rerun limitations are recorded in the
+[debug log](MIKASA_DUAL_RECURRENCE.md#debug-log-and-current-limitations).
+
 Implicit test-time compute scaling of VLA models via latent iterative reasoning.
 
 RD-VLA introduces a weight-tied recurrent transformer core that performs iterative refinement in latent space, enabling adaptive test-time compute with constant memory footprint. The architecture decomposes the action head into three stages: **Prelude** (grounding), **Recurrent Core** (iterative refinement), and **Coda** (action projection).

@@ -279,6 +279,59 @@ The saved pilot action head contains 9,588,224 persistent-memory parameters
 (counted from `action_head--latest_checkpoint.pt`), while the frozen backbone
 and recurrent core remain unchanged.
 
+## Debug log and current limitations
+
+The following issues were encountered during the pilot and are recorded here
+so a rerun does not mistake an environment failure for a model result.
+
+1. **Checkpoint disk exhaustion.** The first 10-hour supervisor reached roughly
+   global step 46k and failed while serializing a multi-gigabyte model with
+   `No space left on device`. Stale probe directories and the dataset file cache
+   were removed using explicit paths, then the watchdog resumed from the last
+   valid `trainer_state--45500_checkpoint.pt`. The resumed run completed at
+   step 45689 and wrote a valid final model plus trainer state. Keep several GB
+   free before starting another run; checkpoints are not incremental at the
+   `safetensors` model-file level.
+
+2. **Batch-size boundary and throughput.** The measured full-model boundary was
+   batch 8; the frozen-backbone memory-only probe reached batch 24. The 10-hour
+   dual run therefore used `batch_size=24`, gradient accumulation 1, and stayed
+   below 24 GiB (peak observed about 15.6 GiB). Throughput was variable, about
+   16--27 seconds per optimization step, so wall-clock estimates should be made
+   from a short live probe rather than from batch size alone.
+
+3. **NVIDIA Vulkan ICD selection.** The container reports
+   `NVIDIA_DRIVER_CAPABILITIES=compute,utility`, and the default
+   `/etc/vulkan/icd.d/nvidia_icd.json` points to `libGLX_nvidia.so.0`, which
+   fails with `vkCreateInstance ... ERROR_INCOMPATIBLE_DRIVER`. SAPIEN's bundled
+   `vulkan_library/10_nvidia.json` successfully exposes the RTX 3090 through an
+   EGL-backed ICD. `run_mikasa_eval.sh` and `check_mikasa_runtime.sh` now select
+   that descriptor when the caller did not provide `VK_ICD_FILENAMES`. A normal
+   container with `NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics,display`
+   remains the preferred deployment.
+
+4. **Python path contamination.** The old evaluator shim prepended
+   `/usr/local/lib/python3.10/dist-packages`, whose minimal NumPy package
+   shadowed the venv and caused `numpy.ndarray`/`numpy.lib` import failures.
+   The fixed wrapper puts the venv site-packages first and obtains only the
+   missing `pkg_resources` compatibility module from the system path. This also
+   prevents the misleading ManiSkill error claiming that
+   `pytorch_kinematics_ms` is missing when the real cause is an incompatible
+   system `pyparsing`.
+
+5. **CPU simulation still renders on GPU.** `--sim-backend cpu` selects CPU
+   physics, but the installed SAPIEN build still needs a Vulkan GPU for RGB
+   observations. `llvmpipe` is not a supported substitute; it can crash during
+   renderer creation.
+
+6. **What has actually been evaluated.** After the fixes, one real episode of
+   `RememberColor9-VLA-v0` (`reset`, `K=1`, seed 4242424242) completed 25 steps
+   and produced a valid JSONL row (`success=false`). This confirms the complete
+   loading/rendering/action loop, but is not a scientific success-rate estimate.
+   The larger factorial/K-sweep was intentionally stopped before producing
+   aggregate statistics; no SR or interaction claim should be made from the
+   current artifacts.
+
 The downloaded TFRecord metadata independently validates 250 trajectories for
 each of the 10 pilot environments (2,500 total), with seven-dimensional actions;
 the observed episode-length ranges span 11--964 decisions across the short and
